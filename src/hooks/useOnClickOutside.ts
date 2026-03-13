@@ -77,11 +77,10 @@ export function useOnClickOutside<T extends HTMLElement>(
     }, [ref, ignoreRefs]);
 
     const handleKeyDown = useCallback((event: KeyboardEvent): void => {
-        if (event.key === "Escape") {
-            optionsRef.current.onEscape?.();
-            handlerRef.current(event as unknown as AnyEvent);
-        }
-    }, []);
+    if (event.key === "Escape") {
+        optionsRef.current.onEscape?.();
+    }
+}, []);
 
     useEffect(() => {
         if (!enabled) return;
@@ -146,11 +145,10 @@ export function useOnClickOutsideMultiple<T extends HTMLElement>(
     }, [refs, ignoreRefs]);
 
     const handleKeyDown = useCallback((event: KeyboardEvent): void => {
-        if (event.key === "Escape") {
-            optionsRef.current.onEscape?.();
-            handlerRef.current(event as unknown as AnyEvent);
-        }
-    }, []);
+    if (event.key === "Escape") {
+        optionsRef.current.onEscape?.();
+    }
+}, []);
 
     useEffect(() => {
         if (!enabled) return;
