@@ -2,45 +2,70 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type PermissionName =
+export type PermissionName =
+    | "accelerometer"
+    | "ambient-light-sensor"
+    | "background-fetch"
+    | "background-sync"
+    | "bluetooth"
     | "camera"
-    | "microphone"
+    | "clipboard-read"
+    | "clipboard-write"
+    | "display-capture"
+    | "gamepad"
     | "geolocation"
+    | "gyroscope"
+    | "idle-detection"
+    | "local-fonts"
+    | "magnetometer"
+    | "microphone"
+    | "midi"
+    | "nfc"
     | "notifications"
+    | "payment-handler"
+    | "periodic-background-sync"
     | "persistent-storage"
     | "push"
     | "screen-wake-lock"
-    | "xr-spatial-tracking"
-    | "clipboard-read"
-    | "clipboard-write"
-    | "payment-handler"
-    | "idle-detection"
-    | "periodic-background-sync"
+    | "speaker-selection"
+    | "storage-access"
     | "system-wake-lock"
-    | "nfc"
-    | "bluetooth"
-    | "accelerometer"
-    | "gyroscope"
-    | "magnetometer"
-    | "ambient-light-sensor";
+    | "top-level-storage-access"
+    | "window-management"
+    | "xr-spatial-tracking";
 
-type PermissionState = "granted" | "denied" | "prompt" | "unsupported" | "error";
+export type PermissionState =
+    | "granted"
+    | "denied"
+    | "prompt"
+    | "unsupported"
+    | "error";
 
-interface PermissionSnapshot {
+export interface PermissionSnapshot {
     state: PermissionState;
     timestamp: number;
+    /** Milliseconds spent in the previous state */
+    durationMs: number;
 }
 
-interface UsePermissionOptions {
+export interface UsePermissionOptions {
+    /** Subscribe to live permission changes — defaults to true */
     watch?: boolean;
+    /** Called when permission transitions to "granted" */
     onGranted?: () => void;
+    /** Called when permission transitions to "denied" */
     onDenied?: () => void;
+    /** Called when permission transitions to "prompt" */
     onPrompt?: () => void;
+    /** Called on any query or runtime error */
     onError?: (error: Error) => void;
+    /** Called on every state transition */
     onStateChange?: (prev: PermissionState, next: PermissionState) => void;
+    /** Max history entries retained — defaults to 50 */
+    maxHistory?: number;
 }
 
-interface UsePermissionReturn {
+export interface UsePermissionReturn {
     state: PermissionState;
     isGranted: boolean;
     isDenied: boolean;
@@ -49,11 +74,22 @@ interface UsePermissionReturn {
     isLoading: boolean;
     error: Error | null;
     history: PermissionSnapshot[];
+    /** Epoch ms of last state change */
+    lastChangedAt: number | null;
+    /** Manually re-query the permission */
     query: () => Promise<void>;
+    /** Reset error to null */
+    clearError: () => void;
+    /** Wipe history array */
+    clearHistory: () => void;
 }
 
-// ─── Batch query multiple permissions at once ─────────────────────────────────
+// ─── Batch helper ─────────────────────────────────────────────────────────────
 
+/**
+ * Query multiple permissions in parallel.
+ * Never throws — returns "unsupported" on any failure.
+ */
 export async function queryPermissions(
     names: PermissionName[]
 ): Promise<Record<PermissionName, PermissionState>> {
@@ -79,23 +115,44 @@ export async function queryPermissions(
     return result;
 }
 
+/**
+ * One-shot check — safe to call outside React (route guards, service workers).
+ */
+export async function checkPermission(name: PermissionName): Promise<PermissionState> {
+    try {
+        if (typeof navigator === "undefined" || !navigator?.permissions?.query) {
+            return "unsupported";
+        }
+        const status = await navigator.permissions.query(
+            { name: name as PermissionDescriptor["name"] }
+        );
+        return status.state as PermissionState;
+    } catch {
+        return "error";
+    }
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
+
+const DEFAULT_MAX_HISTORY = 50;
 
 export function usePermission(
     name: PermissionName,
     options: UsePermissionOptions = {}
 ): UsePermissionReturn {
-    const { watch = true } = options;
+    const { watch = true, maxHistory = DEFAULT_MAX_HISTORY } = options;
 
     const [state, setState] = useState<PermissionState>("prompt");
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<Error | null>(null);
     const [history, setHistory] = useState<PermissionSnapshot[]>([]);
+    const [lastChangedAt, setLastChangedAt] = useState<number | null>(null);
 
     const optionsRef = useRef(options);
     useEffect(() => { optionsRef.current = options; });
 
     const prevStateRef = useRef<PermissionState>("prompt");
+    const prevTimestampRef = useRef<number>(Date.now());
     const permissionStatusRef = useRef<PermissionStatus | null>(null);
     const mountedRef = useRef(true);
     const queryIdRef = useRef(0);
@@ -105,22 +162,38 @@ export function usePermission(
         return () => { mountedRef.current = false; };
     }, []);
 
+    // ─── State transition ─────────────────────────────────────────────────────
+
     const updateState = useCallback((newState: PermissionState): void => {
         if (!mountedRef.current) return;
 
         const prev = prevStateRef.current;
         if (prev === newState) return;
 
+        const now = Date.now();
+        const durationMs = now - prevTimestampRef.current;
+
         prevStateRef.current = newState;
+        prevTimestampRef.current = now;
+
         setState(newState);
-        setHistory(h => [...h, { state: newState, timestamp: Date.now() }]);
+        setLastChangedAt(now);
+        setHistory((h) => {
+            const snapshot: PermissionSnapshot = { state: newState, timestamp: now, durationMs };
+            const updated = [...h, snapshot];
+            return updated.length > maxHistory
+                ? updated.slice(updated.length - maxHistory)
+                : updated;
+        });
 
         const opts = optionsRef.current;
         if (newState === "granted") opts.onGranted?.();
-        if (newState === "denied") opts.onDenied?.();
-        if (newState === "prompt") opts.onPrompt?.();
-        if (prev !== newState) opts.onStateChange?.(prev, newState);
-    }, []);
+        if (newState === "denied")  opts.onDenied?.();
+        if (newState === "prompt")  opts.onPrompt?.();
+        opts.onStateChange?.(prev, newState);
+    }, [maxHistory]);
+
+    // ─── Query ────────────────────────────────────────────────────────────────
 
     const query = useCallback(async (): Promise<void> => {
         if (!mountedRef.current) return;
@@ -131,7 +204,7 @@ export function usePermission(
 
         if (typeof navigator === "undefined" || !navigator?.permissions?.query) {
             updateState("unsupported");
-            setIsLoading(false);
+            if (mountedRef.current) setIsLoading(false);
             return;
         }
 
@@ -140,11 +213,12 @@ export function usePermission(
                 { name: name as PermissionDescriptor["name"] }
             );
 
+            // Guard 1 — unmounted while in flight
             if (!mountedRef.current) return;
-            // ✅ Discard stale query results if name prop changed while in flight
+            // Guard 2 — name prop changed, result is stale
             if (queryId !== queryIdRef.current) return;
 
-            // Remove previous listener before attaching new one
+            // Detach stale listener before overwriting ref
             if (permissionStatusRef.current) {
                 permissionStatusRef.current.onchange = null;
             }
@@ -152,7 +226,6 @@ export function usePermission(
             permissionStatusRef.current = status;
             updateState(status.state as PermissionState);
 
-            // Live permission change watching
             if (watch) {
                 status.onchange = (): void => {
                     if (mountedRef.current) {
@@ -167,18 +240,18 @@ export function usePermission(
             updateState("error");
             optionsRef.current.onError?.(err);
         } finally {
-            // ✅ Only set isLoading=false if this is still the latest query
             if (mountedRef.current && queryId === queryIdRef.current) {
                 setIsLoading(false);
             }
         }
     }, [name, watch, updateState]);
 
+    // ─── Effect ───────────────────────────────────────────────────────────────
+
     useEffect(() => {
         let cancelled = false;
 
         const run = async (): Promise<void> => {
-            // ✅ Cancellation flag prevents stale effect from firing
             if (!cancelled) await query();
         };
 
@@ -192,16 +265,31 @@ export function usePermission(
         };
     }, [query]);
 
+    // ─── Utilities ────────────────────────────────────────────────────────────
+
+    const clearError = useCallback((): void => {
+        if (mountedRef.current) setError(null);
+    }, []);
+
+    const clearHistory = useCallback((): void => {
+        if (mountedRef.current) setHistory([]);
+    }, []);
+
+    // ─── Return ───────────────────────────────────────────────────────────────
+
     return {
         state,
-        isGranted: state === "granted",
-        isDenied: state === "denied",
-        isPrompt: state === "prompt",
+        isGranted:     state === "granted",
+        isDenied:      state === "denied",
+        isPrompt:      state === "prompt",
         isUnsupported: state === "unsupported" || state === "error",
         isLoading,
         error,
         history,
+        lastChangedAt,
         query,
+        clearError,
+        clearHistory,
     };
 }
 
