@@ -225,12 +225,63 @@ export function useMediaQueries(
     queries: Record<string, string | string[]>,
     options: UseMediaQueryOptions = {}
 ): MediaQueryResults {
-    const results: MediaQueryResults = {};
-    // Rules-of-hooks lint suppressed — object key order is stable at call site
-    for (const [key, queryString] of Object.entries(queries)) {
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        results[key] = useMediaQuery(queryString, options).matches;
-    }
+    const { defaultValue = false, presets, combinator = "and" } = options;
+
+    const mergedPresets = useMemo(
+        () => (presets ? { ...TAILWIND_PRESETS, ...presets } : TAILWIND_PRESETS),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [JSON.stringify(presets)]
+    );
+
+    // Build a stable map of key → resolved final query string
+    const queryMap = useMemo(() => {
+        const map: Record<string, string> = {};
+        for (const [key, q] of Object.entries(queries)) {
+            map[key] = buildFinalQuery(q, mergedPresets, combinator);
+        }
+        return map;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [JSON.stringify(queries), mergedPresets, combinator]);
+
+    const [results, setResults] = useState<MediaQueryResults>(() => {
+        const initial: MediaQueryResults = {};
+        for (const key of Object.keys(queryMap)) {
+            const mql = getOrCreateMQL(queryMap[key]);
+            initial[key] = mql ? mql.matches : defaultValue;
+        }
+        return initial;
+    });
+
+    useEffect(() => {
+        const mqls: Array<{ key: string; mql: MediaQueryList; handler: (e: MediaQueryListEvent) => void }> = [];
+
+        // Snap to current values
+        const current: MediaQueryResults = {};
+        for (const [key, finalQuery] of Object.entries(queryMap)) {
+            const mql = getOrCreateMQL(finalQuery);
+            current[key] = mql ? mql.matches : defaultValue;
+
+            if (mql) {
+                const handler = (e: MediaQueryListEvent): void => {
+                    setResults((prev) => ({ ...prev, [key]: e.matches }));
+                };
+                mqls.push({ key, mql, handler });
+                addMQLListener(mql, handler);
+            }
+        }
+        setResults(current);
+
+        return () => {
+            for (const { mql, handler } of mqls) {
+                if (typeof mql.removeEventListener === "function") {
+                    mql.removeEventListener("change", handler);
+                } else {
+                    mql.removeListener(handler);
+                }
+            }
+        };
+    }, [queryMap, defaultValue]);
+
     return results;
 }
 
