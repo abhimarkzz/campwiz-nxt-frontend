@@ -50,7 +50,7 @@ export function useAPI<T>(
         } else {
             setState({ data: result.data, isLoading: false, error: null });
         }
-    }, [path, useCache]);
+    }, [path, req, useCache]);
 
     useEffect(() => {
         if (!enabled || !path) return;
@@ -101,7 +101,7 @@ export function useAPIList<T>(
             setState({ data: result.data, isLoading: false, error: null });
             setTotal(result.total);
         }
-    }, [path, useCache]);
+    }, [path, req, useCache]);
 
     useEffect(() => {
         if (!enabled || !path) return;
