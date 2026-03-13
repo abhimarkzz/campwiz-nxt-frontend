@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import type { RefObject } from "react";
 
-// Stable empty array reference — prevents listener churn on every render
+// ✅ Stable empty array reference — prevents listener churn on every render
 const EMPTY_REFS: RefObject<HTMLElement | null>[] = [];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -29,11 +29,10 @@ function isInsideRef(
     // Standard DOM containment
     if (ref.current.contains(target)) return true;
 
-    // Shadow DOM support
+    // Shadow DOM support — traverse shadow root boundaries
     let node: Node | null = target;
     while (node) {
         if (node === ref.current) return true;
-        // Traverse shadow root boundaries
         const root = (node as Element).getRootNode?.();
         if (root instanceof ShadowRoot) {
             if (ref.current.contains(root.host)) return true;
@@ -60,7 +59,7 @@ export function useOnClickOutside<T extends HTMLElement>(
         listenForEscape = false,
     } = options;
 
-    // Always call latest handler without re-registering listeners
+    // Always use latest handler/options without re-registering listeners
     const handlerRef = useRef(handler);
     useEffect(() => { handlerRef.current = handler; });
 
@@ -79,33 +78,27 @@ export function useOnClickOutside<T extends HTMLElement>(
         handlerRef.current(event);
     }, [ref, ignoreRefs]);
 
+    // ✅ Escape key only calls onEscape — never the main pointer handler
     const handleKeyDown = useCallback((event: KeyboardEvent): void => {
-    if (event.key === "Escape") {
-        optionsRef.current.onEscape?.();
-    }
-}, []);
+        if (event.key === "Escape") {
+            optionsRef.current.onEscape?.();
+        }
+    }, []);
 
     useEffect(() => {
         if (!enabled) return;
 
+        // passive + capture: performance-safe, catches all bubbled events
         const opts: AddEventListenerOptions = { passive: true, capture: true };
 
-        document.addEventListener(
-            eventType,
-            handleEvent as EventListener,
-            opts
-        );
+        document.addEventListener(eventType, handleEvent as EventListener, opts);
 
         if (listenForEscape) {
             document.addEventListener("keydown", handleKeyDown);
         }
 
         return () => {
-            document.removeEventListener(
-                eventType,
-                handleEvent as EventListener,
-                opts
-            );
+            document.removeEventListener(eventType, handleEvent as EventListener, opts);
             if (listenForEscape) {
                 document.removeEventListener("keydown", handleKeyDown);
             }
@@ -147,11 +140,12 @@ export function useOnClickOutsideMultiple<T extends HTMLElement>(
         handlerRef.current(event);
     }, [refs, ignoreRefs]);
 
+    // ✅ Escape key only calls onEscape — never the main pointer handler
     const handleKeyDown = useCallback((event: KeyboardEvent): void => {
-    if (event.key === "Escape") {
-        optionsRef.current.onEscape?.();
-    }
-}, []);
+        if (event.key === "Escape") {
+            optionsRef.current.onEscape?.();
+        }
+    }, []);
 
     useEffect(() => {
         if (!enabled) return;
@@ -173,7 +167,7 @@ export function useOnClickOutsideMultiple<T extends HTMLElement>(
     }, [enabled, eventType, handleEvent, handleKeyDown, listenForEscape]);
 }
 
-// ─── Auto-ref variant — returns a ref, no need to create one manually ─────────
+// ─── Auto-ref variant — no need to create a ref manually ─────────────────────
 
 export function useClickOutsideRef<T extends HTMLElement>(
     handler: (event: AnyEvent) => void,

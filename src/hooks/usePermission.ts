@@ -141,8 +141,10 @@ export function usePermission(
             );
 
             if (!mountedRef.current) return;
+            // ✅ Discard stale query results if name prop changed while in flight
+            if (queryId !== queryIdRef.current) return;
 
-            // Remove previous listener
+            // Remove previous listener before attaching new one
             if (permissionStatusRef.current) {
                 permissionStatusRef.current.onchange = null;
             }
@@ -150,7 +152,7 @@ export function usePermission(
             permissionStatusRef.current = status;
             updateState(status.state as PermissionState);
 
-            // Watch for live permission changes
+            // Live permission change watching
             if (watch) {
                 status.onchange = (): void => {
                     if (mountedRef.current) {
@@ -165,6 +167,7 @@ export function usePermission(
             updateState("error");
             optionsRef.current.onError?.(err);
         } finally {
+            // ✅ Only set isLoading=false if this is still the latest query
             if (mountedRef.current && queryId === queryIdRef.current) {
                 setIsLoading(false);
             }
@@ -172,9 +175,17 @@ export function usePermission(
     }, [name, watch, updateState]);
 
     useEffect(() => {
-        query();
+        let cancelled = false;
+
+        const run = async (): Promise<void> => {
+            // ✅ Cancellation flag prevents stale effect from firing
+            if (!cancelled) await query();
+        };
+
+        run();
 
         return () => {
+            cancelled = true;
             if (permissionStatusRef.current) {
                 permissionStatusRef.current.onchange = null;
             }
