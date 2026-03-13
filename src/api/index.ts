@@ -194,7 +194,14 @@ async function executeRequest<T>(
 
     if (!req?.method || req.method === "GET") {
         inFlight.set(cacheKey, promise);
-        promise.finally(() => inFlight.delete(cacheKey));
+        // ✅ Fixed: guard ensures only THIS promise cleans up its own entry.
+        //    Without this, a cancelled request's .finally() would delete the
+        //    NEW request from the map, breaking deduplication entirely.
+        promise.finally(() => {
+            if (inFlight.get(cacheKey) === promise) {
+                inFlight.delete(cacheKey);
+            }
+        });
     }
 
     return promise;

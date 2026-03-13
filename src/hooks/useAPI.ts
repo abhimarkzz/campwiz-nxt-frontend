@@ -37,25 +37,32 @@ export function useAPI<T>(
     const reqKey = JSON.stringify(req);
 
     const fetchData = useCallback(async () => {
-      if (!path) return;
+        if (!path) return;
 
-      abortRef.current?.abort();
-      const controller = new AbortController(); // ✅ capture locally
-      abortRef.current = controller;
+        abortRef.current?.abort();
+        const controller = new AbortController(); // ✅ capture locally
+        abortRef.current = controller;
 
-      setState(prev => ({ ...prev, isLoading: true, error: null }));
+        setState(prev => ({ ...prev, isLoading: true, error: null }));
 
-      const result = await fetchAPIFromBackendSingleWithErrorHandling<T>(
-          path,
-          reqRef.current,
-          controller.signal, // ✅ use local ref, not abortRef.current
-          useCache
-    );
+        const result = await fetchAPIFromBackendSingleWithErrorHandling<T>(
+            path,
+            reqRef.current,
+            controller.signal, // ✅ use local ref, not abortRef.current
+            useCache
+        );
 
-    if (controller.signal.aborted) return; // ✅ checks THIS request's signal
+        if (controller.signal.aborted) return; // ✅ checks THIS request's signal
 
-    // ...rest of handler
-}, [path, reqKey, useCache]);
+        // ✅ Fixed: was missing — caused permanent loading state (CRITICAL)
+        if (isResponseError(result)) {
+            setState({ data: null, isLoading: false, error: result.detail });
+        } else {
+            setState({ data: result.data, isLoading: false, error: null });
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [path, reqKey, useCache]); // ✅ reqKey (string) is stable across renders
+                                  //    when content is unchanged
 
     useEffect(() => {
         if (!enabled || !path) return;
@@ -95,18 +102,19 @@ export function useAPIList<T>(
         if (!path) return;
 
         abortRef.current?.abort();
-        abortRef.current = new AbortController();
+        const controller = new AbortController(); // ✅ capture locally
+        abortRef.current = controller;
 
         setState(prev => ({ ...prev, isLoading: true, error: null }));
 
         const result = await fetchAPIFromBackendMultipleWithErrorHandling<T>(
             path,
-            reqRef.current,   // ✅ Read from ref, not from the closure
-            abortRef.current.signal,
+            reqRef.current,
+            controller.signal, // ✅ use local ref, not abortRef.current
             useCache
         );
 
-        if (abortRef.current.signal.aborted) return;
+        if (controller.signal.aborted) return; // ✅ checks THIS request's signal
 
         if (isResponseError(result)) {
             setState({ data: null, isLoading: false, error: result.detail });
@@ -155,7 +163,8 @@ export function useMutation<TData, TBody = unknown>(
 
     const mutate = useCallback(async (body?: TBody) => {
         abortRef.current?.abort();
-        abortRef.current = new AbortController();
+        const controller = new AbortController(); // ✅ capture locally
+        abortRef.current = controller;
 
         setState({ data: null, isLoading: true, error: null });
 
@@ -168,10 +177,10 @@ export function useMutation<TData, TBody = unknown>(
         const result = await fetchAPIFromBackendSingleWithErrorHandling<TData>(
             path,
             req,
-            abortRef.current.signal
+            controller.signal // ✅ use local ref, not abortRef.current
         );
 
-        if (abortRef.current.signal.aborted) return;
+        if (controller.signal.aborted) return; // ✅ checks THIS request's signal
 
         if (isResponseError(result)) {
             setState({ data: null, isLoading: false, error: result.detail });
