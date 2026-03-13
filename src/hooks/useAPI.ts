@@ -165,7 +165,7 @@ export function useMutation<TData, TBody = unknown>(
             setState({ data: result.data, isLoading: false, error: null });
             options.onSuccess?.(result.data);
         }
-    }, [path, method]);
+    }, [path, method, options]);
 
     useEffect(() => {
         return () => { abortRef.current?.abort(); };

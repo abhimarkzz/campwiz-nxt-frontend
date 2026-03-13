@@ -116,7 +116,19 @@ async function executeRequest<T>(
     // Deduplicate in-flight GET requests
     if (!req?.method || req.method === "GET") {
         const existing = inFlight.get(cacheKey);
-        if (existing) return existing as Promise<T | ResponseError>;
+        if (existing) {
+            const result = await existing as T | ResponseError;
+            const cancelled =
+                typeof result === "object" &&
+                result !== null &&
+                "detail" in result &&
+                (result as ResponseError).detail === "Request was cancelled.";
+            if (cancelled) {
+                inFlight.delete(cacheKey);
+            } else {
+                return result;
+            }
+        }
     }
 
     let attempt = 0;
