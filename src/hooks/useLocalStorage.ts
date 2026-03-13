@@ -332,7 +332,7 @@ export function useLocalStorage<T>(
                 );
             }
             isRemovingRef.current = false;
-        } else if (state.value !== null) {
+        } else {
             const serialized = writeToStorage(
                 key, state.value, version, serializer, ttl,
                 optionsRef.current.onError
