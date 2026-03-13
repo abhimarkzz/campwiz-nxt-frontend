@@ -27,6 +27,14 @@ export function useAPI<T>(
     });
 
     const abortRef = useRef<AbortController | null>(null);
+    // ✅ Keep the latest `req` in a ref so fetchData can access it
+    //    without it being a reactive dependency.
+    const reqRef = useRef(req);
+    useEffect(() => { reqRef.current = req; });
+
+    // ✅ Stable cache key — re-creates fetchData only when the
+    //    serialized value actually changes, not on every new object reference.
+    const reqKey = JSON.stringify(req);
 
     const fetchData = useCallback(async () => {
         if (!path) return;
@@ -38,7 +46,7 @@ export function useAPI<T>(
 
         const result = await fetchAPIFromBackendSingleWithErrorHandling<T>(
             path,
-            req,
+            reqRef.current,   // ✅ Read from ref, not from the closure
             abortRef.current.signal,
             useCache
         );
@@ -50,7 +58,9 @@ export function useAPI<T>(
         } else {
             setState({ data: result.data, isLoading: false, error: null });
         }
-    }, [path, req, useCache]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [path, reqKey, useCache]); // ✅ reqKey (string) is stable across renders
+                                  //    when content is unchanged
 
     useEffect(() => {
         if (!enabled || !path) return;
@@ -77,6 +87,14 @@ export function useAPIList<T>(
     });
     const [total, setTotal] = useState<number>(0);
     const abortRef = useRef<AbortController | null>(null);
+    // ✅ Keep the latest `req` in a ref so fetchData can access it
+    //    without it being a reactive dependency.
+    const reqRef = useRef(req);
+    useEffect(() => { reqRef.current = req; });
+
+    // ✅ Stable cache key — re-creates fetchData only when the
+    //    serialized value actually changes, not on every new object reference.
+    const reqKey = JSON.stringify(req);
 
     const fetchData = useCallback(async () => {
         if (!path) return;
@@ -88,7 +106,7 @@ export function useAPIList<T>(
 
         const result = await fetchAPIFromBackendMultipleWithErrorHandling<T>(
             path,
-            req,
+            reqRef.current,   // ✅ Read from ref, not from the closure
             abortRef.current.signal,
             useCache
         );
@@ -101,7 +119,9 @@ export function useAPIList<T>(
             setState({ data: result.data, isLoading: false, error: null });
             setTotal(result.total);
         }
-    }, [path, req, useCache]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [path, reqKey, useCache]); // ✅ reqKey (string) is stable across renders
+                                  //    when content is unchanged
 
     useEffect(() => {
         if (!enabled || !path) return;
