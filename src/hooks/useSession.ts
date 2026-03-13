@@ -17,6 +17,11 @@ const useSession = (): UseSessionReturn => {
     const [error, setError] = useState<string | null>(null);
     const [currentSession, setCurrentSession] = useState<Session | null>(session);
 
+// ✅ Sync state whenever context value changes (logout, token refresh, etc.)
+useEffect(() => {
+    setCurrentSession(session);
+}, [session]);
+
     const fetchSession = async (): Promise<void> => {
         setIsLoading(true);
         setError(null);
