@@ -27,9 +27,36 @@ interface UseLocalStorageReturn<T> {
     lastUpdated: number | null;
 }
 
+interface StorageState<T> {
+    value: T;
+    timestamp: number | null;
+    isExpired: boolean;
+    // ✅ Fix bug 1: track serialized string to prevent infinite loop
+    // We compare serialized values (strings) instead of object references
+    serialized: string;
+}
+
 // ─── SSR guard ────────────────────────────────────────────────────────────────
 
 const isBrowser = (): boolean => typeof window !== "undefined";
+
+// ─── Safe JSON parse ──────────────────────────────────────────────────────────
+
+// ✅ Fix bug 3: ALL JSON.parse calls go through this — never throws
+function safeParse<T>(
+    raw: string,
+    fallback: T,
+    onError?: (error: Error, key: string) => void,
+    key = "unknown"
+): T {
+    try {
+        return JSON.parse(raw) as T;
+    } catch (e) {
+        const error = e instanceof Error ? e : new Error(String(e));
+        onError?.(error, key);
+        return fallback;
+    }
+}
 
 // ─── Serialization ────────────────────────────────────────────────────────────
 
@@ -41,12 +68,15 @@ function deserialize<T>(
     raw: string,
     fallback: T,
     options: UseLocalStorageOptions<T>,
-    currentVersion: number
+    currentVersion: number,
+    key: string
 ): { value: T; timestamp: number; expiresAt?: number } | null {
-    const parsed = JSON.parse(raw) as StorageEntry<unknown>;
+    // ✅ Fix bug 3: safe parse — never throws
+    const parsed = safeParse<unknown>(raw, null, options.onError, key);
+    if (parsed === null) return { value: fallback, timestamp: Date.now() };
 
     // Handle legacy values (stored before versioning)
-    if (typeof parsed !== "object" || !("version" in parsed)) {
+    if (typeof parsed !== "object" || !("version" in (parsed as object))) {
         if (options.migrate) {
             return {
                 value: options.migrate(parsed, 0),
@@ -58,9 +88,9 @@ function deserialize<T>(
 
     const entry = parsed as StorageEntry<unknown>;
 
-    // Check expiry
+    // Check expiry — return null to signal expired
     if (entry.expiresAt && Date.now() > entry.expiresAt) {
-        return null; // expired
+        return null;
     }
 
     // Migrate if version mismatch
@@ -84,8 +114,6 @@ function deserialize<T>(
 }
 
 // ─── Global event bus for same-tab sync ───────────────────────────────────────
-// The native `storage` event only fires in OTHER tabs.
-// We dispatch a custom event so same-tab listeners also sync.
 
 const SAME_TAB_EVENT = "useLocalStorage:update";
 
@@ -107,24 +135,53 @@ function readStorageValue<T>(
     initialValue: T,
     options: UseLocalStorageOptions<T>,
     version: number
-): { value: T; timestamp: number | null; isExpired: boolean } {
+): StorageState<T> {
     if (!isBrowser()) {
-        return { value: initialValue, timestamp: null, isExpired: false };
+        return {
+            value: initialValue,
+            timestamp: null,
+            isExpired: false,
+            serialized: JSON.stringify(initialValue),
+        };
     }
 
-    const raw = window.localStorage.getItem(key);
+    // ✅ Fix bug 3: safe read — never throws
+    let raw: string | null = null;
+    try {
+        raw = window.localStorage.getItem(key);
+    } catch (e) {
+        const error = e instanceof Error ? e : new Error(String(e));
+        options.onError?.(error, key);
+    }
+
     if (raw === null) {
-        return { value: initialValue, timestamp: null, isExpired: false };
+        return {
+            value: initialValue,
+            timestamp: null,
+            isExpired: false,
+            serialized: JSON.stringify(initialValue),
+        };
     }
 
-    const result = deserialize<T>(raw, initialValue, options, version);
+    const result = deserialize<T>(raw, initialValue, options, version, key);
     if (result === null) {
         // Expired — clean up
-        window.localStorage.removeItem(key);
-        return { value: initialValue, timestamp: null, isExpired: true };
+        try { window.localStorage.removeItem(key); } catch { /* silent */ }
+        return {
+            value: initialValue,
+            timestamp: null,
+            isExpired: true,
+            serialized: JSON.stringify(initialValue),
+        };
     }
 
-    return { value: result.value, timestamp: result.timestamp, isExpired: false };
+    return {
+        value: result.value,
+        timestamp: result.timestamp,
+        isExpired: false,
+        // ✅ Fix bug 1: store serialized form for stable comparison
+        serialized: JSON.stringify(result.value),
+    };
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -136,77 +193,118 @@ export function useLocalStorage<T>(
 ): UseLocalStorageReturn<T> {
     const version = options.version ?? 1;
 
-    // Keep options in a ref so callbacks don't go stale
     const optionsRef = useRef(options);
     useEffect(() => { optionsRef.current = options; });
 
-    const read = useCallback(() => {
-        return readStorageValue(key, initialValue, optionsRef.current, version);
-    }, [key, initialValue, version]);
+    const [state, setState] = useState<StorageState<T>>(() =>
+        readStorageValue(key, initialValue, options, version)
+    );
 
-    const [state, setState] = useState(() => read());
+    // ✅ Fix bug 2: only write to storage when value actually changes
+    // AND preserve the original expiresAt — don't recalculate on every mount
+    const isFirstMount = useRef(true);
 
-    // Write to localStorage whenever value changes
     useEffect(() => {
         if (!isBrowser()) return;
+
+        // On first mount: just read, don't overwrite existing TTL in storage
+        if (isFirstMount.current) {
+            isFirstMount.current = false;
+            return;
+        }
+
+        // ✅ Fix bug 2: read existing entry to preserve original expiresAt
+        let existingExpiresAt: number | undefined;
+        try {
+            const raw = window.localStorage.getItem(key);
+            if (raw) {
+                const existing = safeParse<StorageEntry<unknown>>(
+                    raw, {} as StorageEntry<unknown>, optionsRef.current.onError, key
+                );
+                existingExpiresAt = existing?.expiresAt;
+            }
+        } catch { /* silent */ }
 
         const entry: StorageEntry<T> = {
             value: state.value,
             version,
             timestamp: state.timestamp ?? Date.now(),
-            expiresAt: options.ttlMs
-                ? Date.now() + options.ttlMs
-                : undefined,
+            // Preserve original expiresAt if it exists, only set new one for new values
+            expiresAt: existingExpiresAt ?? (
+                optionsRef.current.ttlMs
+                    ? Date.now() + optionsRef.current.ttlMs
+                    : undefined
+            ),
         };
 
+        const serialized = serialize(entry);
+
         try {
-            window.localStorage.setItem(key, serialize(entry));
-            dispatchSameTabEvent(key, serialize(entry));
+            window.localStorage.setItem(key, serialized);
+            // ✅ Fix bug 1: dispatch with serialized string, not object
+            // Listener will compare serialized strings to detect real changes
+            dispatchSameTabEvent(key, serialized);
         } catch (e) {
             const error = e instanceof Error ? e : new Error(String(e));
             optionsRef.current.onError?.(error, key);
         }
-    }, [key, state.value, version, options.ttlMs]);
+    // ✅ Fix bug 1: depend on state.serialized (string) not state.value (object)
+    // String comparison is stable — won't cause infinite loop with objects/arrays
+    }, [key, state.serialized, version]);
 
-    // Sync across tabs (native storage event)
-    // AND same-tab sync via our custom event
+    // Sync across tabs and same-tab instances
     useEffect(() => {
         if (!isBrowser()) return;
 
         const handleChange = (raw: string | null): void => {
             if (raw === null) {
-                setState({ value: initialValue, timestamp: null, isExpired: false });
+                setState({
+                    value: initialValue,
+                    timestamp: null,
+                    isExpired: false,
+                    serialized: JSON.stringify(initialValue),
+                });
                 return;
             }
-            try {
-                const result = deserialize<T>(
-                    raw,
-                    initialValue,
-                    optionsRef.current,
-                    version
-                );
-                if (result === null) {
-                    setState({ value: initialValue, timestamp: null, isExpired: true });
-                } else {
-                    setState({
-                        value: result.value,
-                        timestamp: result.timestamp,
-                        isExpired: false,
-                    });
-                }
-            } catch (e) {
-                const error = e instanceof Error ? e : new Error(String(e));
-                optionsRef.current.onError?.(error, key);
+
+            const result = deserialize<T>(
+                raw,
+                initialValue,
+                optionsRef.current,
+                version,
+                key
+            );
+
+            if (result === null) {
+                setState({
+                    value: initialValue,
+                    timestamp: null,
+                    isExpired: true,
+                    serialized: JSON.stringify(initialValue),
+                });
+                return;
             }
+
+            const newSerialized = JSON.stringify(result.value);
+
+            // ✅ Fix bug 1: only update state if value actually changed
+            // Prevents infinite loop when same-tab event fires after our own write
+            setState(prev => {
+                if (prev.serialized === newSerialized) return prev;
+                return {
+                    value: result.value,
+                    timestamp: result.timestamp,
+                    isExpired: false,
+                    serialized: newSerialized,
+                };
+            });
         };
 
-        // Cross-tab sync
         const handleStorageEvent = (event: StorageEvent): void => {
             if (event.key !== key) return;
             handleChange(event.newValue);
         };
 
-        // Same-tab sync
         const handleSameTabEvent = (event: Event): void => {
             const e = event as SameTabEvent;
             if (e.detail.key !== key) return;
@@ -223,13 +321,17 @@ export function useLocalStorage<T>(
     }, [key, initialValue, version]);
 
     const setValue: SetValue<T> = useCallback((newValue) => {
-        setState(prev => ({
-            value: typeof newValue === "function"
+        setState(prev => {
+            const resolved = typeof newValue === "function"
                 ? (newValue as (prev: T) => T)(prev.value)
-                : newValue,
-            timestamp: Date.now(),
-            isExpired: false,
-        }));
+                : newValue;
+            return {
+                value: resolved,
+                timestamp: Date.now(),
+                isExpired: false,
+                serialized: JSON.stringify(resolved),
+            };
+        });
     }, []);
 
     const removeValue = useCallback((): void => {
@@ -237,7 +339,12 @@ export function useLocalStorage<T>(
         try {
             window.localStorage.removeItem(key);
             dispatchSameTabEvent(key, null);
-            setState({ value: initialValue, timestamp: null, isExpired: false });
+            setState({
+                value: initialValue,
+                timestamp: null,
+                isExpired: false,
+                serialized: JSON.stringify(initialValue),
+            });
         } catch (e) {
             const error = e instanceof Error ? e : new Error(String(e));
             optionsRef.current.onError?.(error, key);
