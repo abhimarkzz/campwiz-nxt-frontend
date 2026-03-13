@@ -80,11 +80,18 @@ export const fetchFromBackend = async (
     );
 
     // Merge caller signal with timeout signal
-    const combinedSignal = signal
-        ? (AbortSignal as unknown as { any: (signals: AbortSignal[]) => AbortSignal }).any
-            ? (AbortSignal as unknown as { any: (signals: AbortSignal[]) => AbortSignal }).any([signal, timeoutController.signal])
-            : timeoutController.signal
-        : timeoutController.signal;
+    let combinedSignal: AbortSignal;
+
+if (!signal) {
+    combinedSignal = timeoutController.signal;
+} else if ((AbortSignal as unknown as { any?: unknown }).any) {
+    combinedSignal = (AbortSignal as unknown as { any: (s: AbortSignal[]) => AbortSignal })
+        .any([signal, timeoutController.signal]);
+} else {
+    // ✅ Fallback: forward caller's abort to the timeout controller
+    combinedSignal = timeoutController.signal;
+    signal.addEventListener("abort", () => timeoutController.abort(), { once: true });
+}
 
     try {
         const res = await fetch(`${baseURL}${path}`, {
