@@ -202,14 +202,22 @@ export function useLocalStorage<T>(
 
     // ✅ Fix bug 2: only write to storage when value actually changes
     // AND preserve the original expiresAt — don't recalculate on every mount
-    const isFirstMount = useRef(true);
+     const isFirstMount = useRef(true);
+     const isRemoving = useRef(false);
 
     useEffect(() => {
         if (!isBrowser()) return;
 
         // On first mount: just read, don't overwrite existing TTL in storage
+        // On first mount: just read, don't overwrite existing TTL in storage
         if (isFirstMount.current) {
             isFirstMount.current = false;
+            return;
+        }
+
+        // ✅ Fix: skip write if removeValue just ran
+        if (isRemoving.current) {
+            isRemoving.current = false;
             return;
         }
 
@@ -337,6 +345,7 @@ export function useLocalStorage<T>(
     const removeValue = useCallback((): void => {
         if (!isBrowser()) return;
         try {
+            isRemoving.current = true;
             window.localStorage.removeItem(key);
             dispatchSameTabEvent(key, null);
             setState({
