@@ -3,7 +3,7 @@ import { isResponseError } from "@/types/response";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const API_PATH = import.meta.env.VITE_BACKEND_API_PATH || "/api/v2";
-const MAX_RETRIES = 3;
+const MAX_ATTEMPTS = 3;
 const BASE_RETRY_DELAY_MS = 1000;
 const REQUEST_TIMEOUT_MS = 10000;
 
@@ -134,7 +134,7 @@ async function executeRequest<T>(
     let attempt = 0;
 
     const execute = async (): Promise<T | ResponseError> => {
-        while (attempt < MAX_RETRIES) {
+        while (attempt < MAX_ATTEMPTS) {
             try {
                 if (signal?.aborted) {
                     return { detail: "Request was cancelled." };
@@ -175,7 +175,7 @@ async function executeRequest<T>(
 
                 attempt++;
 
-                if (attempt >= MAX_RETRIES) {
+                if (attempt >= MAX_ATTEMPTS) {
                     return {
                         detail: "Network error. Please check your internet connection.",
                     };
