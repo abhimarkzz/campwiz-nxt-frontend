@@ -357,6 +357,12 @@ export function useLocalStorage<T>(
         } catch (e) {
             const error = e instanceof Error ? e : new Error(String(e));
             optionsRef.current.onError?.(error, key);
+        } finally {
+            // ✅ Always reset flag — even if removeItem throws or
+            // setValue is called synchronously after removeValue
+            Promise.resolve().then(() => {
+                isRemoving.current = false;
+            });
         }
     }, [key, initialValue]);
 
