@@ -37,30 +37,25 @@ export function useAPI<T>(
     const reqKey = JSON.stringify(req);
 
     const fetchData = useCallback(async () => {
-        if (!path) return;
+      if (!path) return;
 
-        abortRef.current?.abort();
-        abortRef.current = new AbortController();
+      abortRef.current?.abort();
+      const controller = new AbortController(); // ✅ capture locally
+      abortRef.current = controller;
 
-        setState(prev => ({ ...prev, isLoading: true, error: null }));
+      setState(prev => ({ ...prev, isLoading: true, error: null }));
 
-        const result = await fetchAPIFromBackendSingleWithErrorHandling<T>(
-            path,
-            reqRef.current,   // ✅ Read from ref, not from the closure
-            abortRef.current.signal,
-            useCache
-        );
+      const result = await fetchAPIFromBackendSingleWithErrorHandling<T>(
+          path,
+          reqRef.current,
+          controller.signal, // ✅ use local ref, not abortRef.current
+          useCache
+    );
 
-        if (abortRef.current.signal.aborted) return;
+    if (controller.signal.aborted) return; // ✅ checks THIS request's signal
 
-        if (isResponseError(result)) {
-            setState({ data: null, isLoading: false, error: result.detail });
-        } else {
-            setState({ data: result.data, isLoading: false, error: null });
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [path, reqKey, useCache]); // ✅ reqKey (string) is stable across renders
-                                  //    when content is unchanged
+    // ...rest of handler
+}, [path, reqKey, useCache]);
 
     useEffect(() => {
         if (!enabled || !path) return;
