@@ -28,17 +28,22 @@ export interface UseLocalStorageState<T> {
 
 interface StoredEnvelope<T> {
     __v: number;
-    __t?: number; // expiry timestamp (Date.now() + ttl)
+    __t?: number;
     data: T;
+}
+
+interface SameTabDetail<T> {
+    key: string;
+    value: T | null;
+    serialized: string | null;
+    isRemoving: boolean;
 }
 
 export interface UseLocalStorageReturn<T> {
     value: T | null;
     setValue: (value: T | ((prev: T | null) => T)) => void;
     removeValue: () => void;
-    /** True if the stored value has expired */
     isExpired: boolean;
-    /** Force a re-read from localStorage */
     refresh: () => void;
 }
 
@@ -86,19 +91,21 @@ function readFromStorage<T>(
         const raw = localStorage.getItem(key);
         if (raw === null) return { value: initialValue, isExpired: false };
 
-        // Try parsing as envelope first
         const envelopeParsed = safeParse<StoredEnvelope<T>>(raw, JSON.parse);
 
-        if (envelopeParsed !== PARSE_FAILURE && typeof envelopeParsed === "object" && envelopeParsed !== null && "__v" in (envelopeParsed as object)) {
+        if (
+            envelopeParsed !== PARSE_FAILURE &&
+            typeof envelopeParsed === "object" &&
+            envelopeParsed !== null &&
+            "__v" in (envelopeParsed as object)
+        ) {
             const envelope = envelopeParsed as StoredEnvelope<T>;
 
-            // TTL expiry check
             if (isExpiredEnvelope(envelope)) {
                 localStorage.removeItem(key);
                 return { value: initialValue, isExpired: true };
             }
 
-            // Version migration
             if (envelope.__v < version && migrate) {
                 try {
                     const migrated = migrate(envelope.data, envelope.__v);
@@ -112,7 +119,6 @@ function readFromStorage<T>(
             return { value: envelope.data, isExpired: false };
         }
 
-        // Legacy value (no envelope) — try deserializing directly
         const legacyParsed = safeParse<T>(raw, deserializer);
         if (legacyParsed !== PARSE_FAILURE) {
             return { value: legacyParsed as T, isExpired: false };
@@ -144,9 +150,7 @@ function writeToStorage<T>(
         localStorage.setItem(key, serialized);
         return serialized;
     } catch (e) {
-        // QuotaExceededError or SecurityError
         onError?.(e instanceof Error ? e : new Error(String(e)));
-        // Fallback: try writing raw value
         try {
             const raw = serializer(value);
             localStorage.setItem(key, raw);
@@ -187,6 +191,8 @@ export function useLocalStorage<T>(
     const [removeCount, setRemoveCount] = useState(0);
     const isRemovingRef = useRef(false);
     const isFirstMountRef = useRef(true);
+    // ✅ Tracks whether the last setState came from a sync event — prevents infinite loop
+    const isSyncUpdateRef = useRef(false);
     const mountedRef = useRef(true);
     const optionsRef = useRef(options);
     useEffect(() => { optionsRef.current = options; });
@@ -249,6 +255,7 @@ export function useLocalStorage<T>(
             if (event.key !== key || !mountedRef.current) return;
 
             if (event.newValue === null) {
+                isSyncUpdateRef.current = true;
                 setState({ value: initialValue, serialized: null });
                 setIsExpired(false);
             } else {
@@ -256,17 +263,11 @@ export function useLocalStorage<T>(
                     key, version, initialValue, deserializer, migrate,
                     optionsRef.current.onError
                 );
+                isSyncUpdateRef.current = true;
                 setState({ value, serialized: event.newValue });
                 setIsExpired(expired);
             }
         };
-
-        interface SameTabDetail<T> {
-            key: string;
-            value: T | null;
-            serialized: string | null;
-            isRemoving: boolean;
-        }
 
         const handleSameTabEvent = (event: Event): void => {
             const customEvent = event as CustomEvent<SameTabDetail<T>>;
@@ -275,6 +276,8 @@ export function useLocalStorage<T>(
 
             try {
                 const { value, serialized, isRemoving } = customEvent.detail;
+                // ✅ Mark as sync-originated — write effect skips this update
+                isSyncUpdateRef.current = true;
                 if (isRemoving) {
                     setState({ value: initialValue, serialized: null });
                 } else {
@@ -306,6 +309,12 @@ export function useLocalStorage<T>(
         // Skip write on first mount — avoid overwriting existing data on init
         if (isFirstMountRef.current) {
             isFirstMountRef.current = false;
+            return;
+        }
+
+        // ✅ Skip write if state was updated by a sync event — prevents infinite loop
+        if (isSyncUpdateRef.current) {
+            isSyncUpdateRef.current = false;
             return;
         }
 
