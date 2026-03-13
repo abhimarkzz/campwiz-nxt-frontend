@@ -191,7 +191,10 @@ export function useDebouncedCallback<T extends unknown[]>(
         }
 
         timerRef.current = setTimeout(() => {
-            if (!leading || isLeadingFiredRef.current) {
+            // ✅ Fixed: was `!leading || isLeadingFiredRef.current` which caused
+            //    double invocation when leading=true. Now correctly skips the
+            //    trailing call if the leading edge already fired for this burst.
+            if (!leading || !isLeadingFiredRef.current) {
                 callbackRef.current(...(lastArgsRef.current as T));
             }
             setIsPending(false);
