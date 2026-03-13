@@ -98,6 +98,7 @@ export function usePermission(
     const prevStateRef = useRef<PermissionState>("prompt");
     const permissionStatusRef = useRef<PermissionStatus | null>(null);
     const mountedRef = useRef(true);
+    const queryIdRef = useRef(0);
 
     useEffect(() => {
         mountedRef.current = true;
@@ -124,6 +125,7 @@ export function usePermission(
     const query = useCallback(async (): Promise<void> => {
         if (!mountedRef.current) return;
 
+        const queryId = ++queryIdRef.current;
         setIsLoading(true);
         setError(null);
 
@@ -163,7 +165,9 @@ export function usePermission(
             updateState("error");
             optionsRef.current.onError?.(err);
         } finally {
-            if (mountedRef.current) setIsLoading(false);
+            if (mountedRef.current && queryId === queryIdRef.current) {
+                setIsLoading(false);
+            }
         }
     }, [name, watch, updateState]);
 

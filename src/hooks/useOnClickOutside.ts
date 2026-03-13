@@ -1,6 +1,9 @@
 import { useEffect, useRef, useCallback } from "react";
 import type { RefObject } from "react";
 
+// Stable empty array reference — prevents listener churn on every render
+const EMPTY_REFS: RefObject<HTMLElement | null>[] = [];
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type AnyEvent = MouseEvent | TouchEvent | PointerEvent;
@@ -53,7 +56,7 @@ export function useOnClickOutside<T extends HTMLElement>(
     const {
         enabled = true,
         eventType = "pointerdown",
-        ignoreRefs = [],
+        ignoreRefs = EMPTY_REFS,
         listenForEscape = false,
     } = options;
 
@@ -120,7 +123,7 @@ export function useOnClickOutsideMultiple<T extends HTMLElement>(
     const {
         enabled = true,
         eventType = "pointerdown",
-        ignoreRefs = [],
+        ignoreRefs = EMPTY_REFS,
         listenForEscape = false,
     } = options;
 
