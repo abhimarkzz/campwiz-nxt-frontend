@@ -60,6 +60,8 @@ function safeParse<T>(
 function serialize<T>(entry: StorageEntry<T>): string {
     return JSON.stringify(entry);
 }
+// Sentinel to distinguish parse failure from a legitimately stored null
+const PARSE_FAILURE = Symbol("PARSE_FAILURE");
 
 function deserialize<T>(
     raw: string,
@@ -68,9 +70,9 @@ function deserialize<T>(
     currentVersion: number,
     key: string
 ): { value: T; timestamp: number; expiresAt?: number } | null {
-    const parsed = safeParse<unknown>(raw, null, options.onError, key);
-    if (parsed === null) return { value: fallback, timestamp: Date.now() };
-
+    const parsed = safeParse<unknown>(raw, PARSE_FAILURE as unknown, options.onError, key);
+    if (parsed === PARSE_FAILURE) return { value: fallback, timestamp: Date.now() };
+    
     if (typeof parsed !== "object" || !("version" in (parsed as object))) {
         if (options.migrate) {
             return { value: options.migrate(parsed, 0), timestamp: Date.now() };
