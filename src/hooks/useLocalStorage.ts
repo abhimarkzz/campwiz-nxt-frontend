@@ -31,8 +31,6 @@ interface StorageState<T> {
     value: T;
     timestamp: number | null;
     isExpired: boolean;
-    // ✅ Fix bug 1: track serialized string to prevent infinite loop
-    // We compare serialized values (strings) instead of object references
     serialized: string;
 }
 
@@ -42,7 +40,6 @@ const isBrowser = (): boolean => typeof window !== "undefined";
 
 // ─── Safe JSON parse ──────────────────────────────────────────────────────────
 
-// ✅ Fix bug 3: ALL JSON.parse calls go through this — never throws
 function safeParse<T>(
     raw: string,
     fallback: T,
@@ -71,29 +68,22 @@ function deserialize<T>(
     currentVersion: number,
     key: string
 ): { value: T; timestamp: number; expiresAt?: number } | null {
-    // ✅ Fix bug 3: safe parse — never throws
     const parsed = safeParse<unknown>(raw, null, options.onError, key);
     if (parsed === null) return { value: fallback, timestamp: Date.now() };
 
-    // Handle legacy values (stored before versioning)
     if (typeof parsed !== "object" || !("version" in (parsed as object))) {
         if (options.migrate) {
-            return {
-                value: options.migrate(parsed, 0),
-                timestamp: Date.now(),
-            };
+            return { value: options.migrate(parsed, 0), timestamp: Date.now() };
         }
         return { value: fallback, timestamp: Date.now() };
     }
 
     const entry = parsed as StorageEntry<unknown>;
 
-    // Check expiry — return null to signal expired
     if (entry.expiresAt && Date.now() > entry.expiresAt) {
         return null;
     }
 
-    // Migrate if version mismatch
     if (entry.version !== currentVersion && options.migrate) {
         return {
             value: options.migrate(entry.value, entry.version),
@@ -101,7 +91,6 @@ function deserialize<T>(
         };
     }
 
-    // Validate shape if validator provided
     if (options.validate && !options.validate(entry.value)) {
         return { value: fallback, timestamp: Date.now() };
     }
@@ -145,7 +134,6 @@ function readStorageValue<T>(
         };
     }
 
-    // ✅ Fix bug 3: safe read — never throws
     let raw: string | null = null;
     try {
         raw = window.localStorage.getItem(key);
@@ -165,7 +153,6 @@ function readStorageValue<T>(
 
     const result = deserialize<T>(raw, initialValue, options, version, key);
     if (result === null) {
-        // Expired — clean up
         try { window.localStorage.removeItem(key); } catch { /* silent */ }
         return {
             value: initialValue,
@@ -179,7 +166,6 @@ function readStorageValue<T>(
         value: result.value,
         timestamp: result.timestamp,
         isExpired: false,
-        // ✅ Fix bug 1: store serialized form for stable comparison
         serialized: JSON.stringify(result.value),
     };
 }
@@ -200,29 +186,29 @@ export function useLocalStorage<T>(
         readStorageValue(key, initialValue, options, version)
     );
 
-    // ✅ Fix bug 2: only write to storage when value actually changes
-    // AND preserve the original expiresAt — don't recalculate on every mount
     const isFirstMount = useRef(true);
     const isRemoving = useRef(false);
+    // ✅ Incrementing this forces the write effect to run even when
+    // state.serialized doesn't change (value === initialValue after remove)
     const [removeCount, setRemoveCount] = useState(0);
 
+    // ─── Write effect ──────────────────────────────────────────────────────────
     useEffect(() => {
         if (!isBrowser()) return;
 
-        // On first mount: just read, don't overwrite existing TTL in storage
-        // On first mount: just read, don't overwrite existing TTL in storage
+        // Skip on first mount — don't overwrite existing TTL
         if (isFirstMount.current) {
             isFirstMount.current = false;
             return;
         }
 
-        // ✅ Fix: skip write if removeValue just ran
+        // ✅ Skip write if removeValue just ran — reset flag here (not in microtask)
         if (isRemoving.current) {
             isRemoving.current = false;
             return;
         }
 
-        // ✅ Fix bug 2: read existing entry to preserve original expiresAt
+        // Preserve original expiresAt — don't reset TTL on every render
         let existingExpiresAt: number | undefined;
         try {
             const raw = window.localStorage.getItem(key);
@@ -238,7 +224,6 @@ export function useLocalStorage<T>(
             value: state.value,
             version,
             timestamp: state.timestamp ?? Date.now(),
-            // Preserve original expiresAt if it exists, only set new one for new values
             expiresAt: existingExpiresAt ?? (
                 optionsRef.current.ttlMs
                     ? Date.now() + optionsRef.current.ttlMs
@@ -250,18 +235,15 @@ export function useLocalStorage<T>(
 
         try {
             window.localStorage.setItem(key, serialized);
-            // ✅ Fix bug 1: dispatch with serialized string, not object
-            // Listener will compare serialized strings to detect real changes
             dispatchSameTabEvent(key, serialized);
         } catch (e) {
             const error = e instanceof Error ? e : new Error(String(e));
             optionsRef.current.onError?.(error, key);
         }
-    // ✅ Fix bug 1: depend on state.serialized (string) not state.value (object)
-    // String comparison is stable — won't cause infinite loop with objects/arrays
-    }, [key, state.serialized, version]);
+    // ✅ removeCount in deps guarantees this effect runs after every removeValue call
+    }, [key, state.serialized, version, removeCount]);
 
-    // Sync across tabs and same-tab instances
+    // ─── Sync effect (cross-tab + same-tab) ───────────────────────────────────
     useEffect(() => {
         if (!isBrowser()) return;
 
@@ -277,11 +259,7 @@ export function useLocalStorage<T>(
             }
 
             const result = deserialize<T>(
-                raw,
-                initialValue,
-                optionsRef.current,
-                version,
-                key
+                raw, initialValue, optionsRef.current, version, key
             );
 
             if (result === null) {
@@ -296,8 +274,6 @@ export function useLocalStorage<T>(
 
             const newSerialized = JSON.stringify(result.value);
 
-            // ✅ Fix bug 1: only update state if value actually changed
-            // Prevents infinite loop when same-tab event fires after our own write
             setState(prev => {
                 if (prev.serialized === newSerialized) return prev;
                 return {
@@ -327,8 +303,9 @@ export function useLocalStorage<T>(
             window.removeEventListener("storage", handleStorageEvent);
             window.removeEventListener(SAME_TAB_EVENT, handleSameTabEvent);
         };
-  }, [key, state.serialized, version, removeCount]);
+    }, [key, initialValue, version]);
 
+    // ─── setValue ──────────────────────────────────────────────────────────────
     const setValue: SetValue<T> = useCallback((newValue) => {
         setState(prev => {
             const resolved = typeof newValue === "function"
@@ -343,14 +320,15 @@ export function useLocalStorage<T>(
         });
     }, []);
 
+    // ─── removeValue ──────────────────────────────────────────────────────────
     const removeValue = useCallback((): void => {
         if (!isBrowser()) return;
         try {
             isRemoving.current = true;
             window.localStorage.removeItem(key);
             dispatchSameTabEvent(key, null);
-            // ✅ Always increment removeCount so the write effect
-            // is guaranteed to run even when value === initialValue
+            // ✅ Increment forces write effect to run and reset isRemoving
+            // even when state.serialized doesn't change
             setRemoveCount(c => c + 1);
             setState({
                 value: initialValue,
@@ -359,6 +337,7 @@ export function useLocalStorage<T>(
                 serialized: JSON.stringify(initialValue),
             });
         } catch (e) {
+            isRemoving.current = false;
             const error = e instanceof Error ? e : new Error(String(e));
             optionsRef.current.onError?.(error, key);
         }
