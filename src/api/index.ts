@@ -148,14 +148,13 @@ async function executeRequest<T>(
                     return { detail: getErrorMessage(res.status) };
                 }
 
-                const data = await res.json() as T;
+                const json = await res.json();
 
-                // Cache successful GET responses
                 if (useCache && (!req?.method || req.method === "GET")) {
-                    setCached<T>(cacheKey, data);
+                    setCached<T>(cacheKey, json);
                 }
 
-                return data;
+                return json;
 
             } catch (e) {
                 if (signal?.aborted) {
