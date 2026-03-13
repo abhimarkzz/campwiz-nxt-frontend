@@ -202,8 +202,9 @@ export function useLocalStorage<T>(
 
     // ✅ Fix bug 2: only write to storage when value actually changes
     // AND preserve the original expiresAt — don't recalculate on every mount
-     const isFirstMount = useRef(true);
-     const isRemoving = useRef(false);
+    const isFirstMount = useRef(true);
+    const isRemoving = useRef(false);
+    const [removeCount, setRemoveCount] = useState(0);
 
     useEffect(() => {
         if (!isBrowser()) return;
@@ -326,7 +327,7 @@ export function useLocalStorage<T>(
             window.removeEventListener("storage", handleStorageEvent);
             window.removeEventListener(SAME_TAB_EVENT, handleSameTabEvent);
         };
-    }, [key, initialValue, version]);
+  }, [key, state.serialized, version, removeCount]);
 
     const setValue: SetValue<T> = useCallback((newValue) => {
         setState(prev => {
@@ -348,6 +349,9 @@ export function useLocalStorage<T>(
             isRemoving.current = true;
             window.localStorage.removeItem(key);
             dispatchSameTabEvent(key, null);
+            // ✅ Always increment removeCount so the write effect
+            // is guaranteed to run even when value === initialValue
+            setRemoveCount(c => c + 1);
             setState({
                 value: initialValue,
                 timestamp: null,
