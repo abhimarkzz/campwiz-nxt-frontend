@@ -27,8 +27,6 @@ interface ProjectListResponse {
     pageSize: number;
 }
 
-const ITEMS_PER_PAGE = 12;
-
 const ProjectList = () => {
     const navigate = useNavigate();
     const { t } = useTranslation();
@@ -62,7 +60,7 @@ const ProjectList = () => {
                 } else {
                     const data = res as unknown as ProjectListResponse;
                     setProjects(data.projects || []);
-                    setTotalPages(Math.ceil(data.total / ITEMS_PER_PAGE));
+                    setTotalPages(Math.ceil(data.total / data.pageSize));
                     setError(null);
                 }
             } catch (err) {

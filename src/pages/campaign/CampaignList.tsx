@@ -24,8 +24,6 @@ interface CampaignListResponse {
     pageSize: number;
 }
 
-const ITEMS_PER_PAGE = 12;
-
 const CampaignList = () => {
     const navigate = useNavigate();
     const { t } = useTranslation();
@@ -57,9 +55,7 @@ const CampaignList = () => {
                 } else {
                     const data = res as unknown as CampaignListResponse;
                     setCampaigns(data.campaigns || []);
-                    setTotalPages(
-                        Math.ceil(data.total / ITEMS_PER_PAGE)
-                    );
+                    setTotalPages(Math.ceil(data.total / data.pageSize));
                     setError(null);
                 }
             } catch (err) {
@@ -96,22 +92,9 @@ const CampaignList = () => {
         <Container maxWidth="lg" sx={{ py: 4 }}>
             <Box sx={{ mb: 4 }}>
                 <ReturnButton />
-                <Box
-                    sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        mt: 2,
-                    }}
-                >
-                    <Typography variant="h4" component="h1">
-                        {t("campaign.campaigns")}
-                    </Typography>
-                    <Button
-                        variant="contained"
-                        startIcon={<AddIcon />}
-                        onClick={() => navigate("/campaign/new")}
-                    >
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 2 }}>
+                    <Typography variant="h4" component="h1">{t("campaign.campaigns")}</Typography>
+                    <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate("/campaign/new")}>
                         {t("campaign.create_new")}
                     </Button>
                 </Box>
@@ -129,50 +112,23 @@ const CampaignList = () => {
                 />
             </Box>
 
-            {error && (
-                <Alert severity="error" sx={{ mb: 3 }}>
-                    {error}
-                </Alert>
-            )}
+            {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 
             {loading ? (
-                <Box sx={{ textAlign: "center", py: 4 }}>
-                    <CircularProgress />
-                </Box>
+                <Box sx={{ textAlign: "center", py: 4 }}><CircularProgress /></Box>
             ) : campaigns.length === 0 ? (
                 <Alert severity="info">{t("campaign.no_campaigns")}</Alert>
             ) : (
                 <>
-                    <Box
-                        sx={{
-                            display: "flex",
-                            flexWrap: "wrap",
-                            justifyContent: "center",
-                            mb: 4,
-                        }}
-                    >
+                    <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "center", mb: 4 }}>
                         {campaigns.map((campaign) => (
-                            <SingleCampaignChip
-                                key={campaign.campaignId}
-                                campaign={campaign}
-                            />
+                            <SingleCampaignChip key={campaign.campaignId} campaign={campaign} />
                         ))}
                     </Box>
 
                     {totalPages > 1 && (
-                        <Box
-                            sx={{
-                                display: "flex",
-                                justifyContent: "center",
-                                mt: 4,
-                            }}
-                        >
-                            <Pagination
-                                count={totalPages}
-                                page={currentPage}
-                                onChange={handlePageChange}
-                                color="primary"
-                            />
+                        <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+                            <Pagination count={totalPages} page={currentPage} onChange={handlePageChange} color="primary" />
                         </Box>
                     )}
                 </>

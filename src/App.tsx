@@ -38,7 +38,10 @@ function App() {
             <Route path="/policy/terms" element={<TermsOfService />} />
             <Route path="/project" element={<ProjectList />} />
             <Route path="/campaign" element={<CampaignList />} />
+            <Route path="/campaign/new" element={<div>Create Campaign - TODO</div>} />
             <Route path="/campaign/:campaignId" element={<CampaignDetail />} />
+            <Route path="/project/new" element={<div>Create Project - TODO</div>} />
+            <Route path="/project/:projectId" element={<div>Project Detail - TODO</div>} />
             <Route path="/*" element={<PrivateRoute />} />
           </Routes>
         </Suspense>
