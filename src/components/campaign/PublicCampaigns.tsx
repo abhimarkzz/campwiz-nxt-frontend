@@ -48,7 +48,9 @@ const PublicRunningCampaigns = ({ limit }: PublicRunningCampaignsProps) => {
     if (!response) return null;
     if ("detail" in response) return <p>Error: {t(response.detail)}</p>;
 
-    const campaigns = (response as unknown as Campaign[]);
+    const campaigns = Array.isArray(response) 
+    ? response 
+    : (response as any).data;
 
     return campaigns.length > 0 ? (
         <div
@@ -62,7 +64,7 @@ const PublicRunningCampaigns = ({ limit }: PublicRunningCampaignsProps) => {
                 padding: "0 8px",
             }}
         >
-            {campaigns.map((v) => (
+            {campaigns.map((v: Campaign) => (
                 <SingleCampaignChip campaign={v} key={v.campaignId} />
             ))}
             <LoadMoreCampaignChip
