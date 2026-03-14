@@ -46,11 +46,11 @@ interface HeroBannerProps {
 const HeroBanner = ({ session }: HeroBannerProps) => {
     const { t } = useTranslation();
 
+    // PermissionOtherProjectAccess bit value from the source repo
+    const PERMISSION_OTHER_PROJECT_ACCESS = 1 << 9;
     const canAccessOtherProject =
         session !== null &&
-        (session.permission & session.permissionMap.PermissionOtherProjectAccess) ===
-            session.permissionMap.PermissionOtherProjectAccess;
-
+        (session.permission & PERMISSION_OTHER_PROJECT_ACCESS) === PERMISSION_OTHER_PROJECT_ACCESS;
     const accessibleProjectId = session?.projectId ?? null;
     const showProjectDashboardLink =
         session !== null && (canAccessOtherProject || accessibleProjectId !== null);
