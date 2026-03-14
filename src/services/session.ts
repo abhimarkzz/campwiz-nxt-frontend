@@ -16,7 +16,7 @@ export async function loginInitiate(
     const qs = `?next=${next ?? "/"}`;
     const res = await fetchAPI<RedirectResponse>(`${pathName}${qs}`);
     if (isResponseError(res)) throw new Error(res.detail);
-    const location = (res as { data?: RedirectResponse }).data?.redirect;
+    const location = (res as unknown as RedirectResponse).redirect;
     if (!location) throw new Error("Redirect location missing from response");
     window.location.href = location;
 }
