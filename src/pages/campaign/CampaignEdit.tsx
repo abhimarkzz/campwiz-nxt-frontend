@@ -1,4 +1,4 @@
-import { initialCampaignCreate, type CampaignCreate } from "@/types/campaign/create";
+import type { CampaignCreate } from "@/types/campaign/create";
 import {
     Autocomplete,
     Checkbox,
@@ -73,7 +73,7 @@ const CampaignEdit = ({
                     label={t("campaign.startDate")}
                     value={dayjs(campaign.startDate)}
                     // startDate
-                    onChange={(date: dayjs.Dayjs | null) => dispatch({ startDate: date?.toISOString() })}
+                    onChange={(date: dayjs.Dayjs | null) => dispatch({ startDate: date ? date.toISOString() : "" })}
                     sx={{ width: { xs: "100%", sm: "27%" }, mb: 1 }}
                     disabled={loading || disabled}
                     timezone="UTC"
@@ -83,7 +83,7 @@ const CampaignEdit = ({
                     label={t("campaign.endDate")}
                     value={dayjs(campaign.endDate)}
                     // endDate  
-                    onChange={(date: dayjs.Dayjs | null) => dispatch({ endDate: date?.toISOString() })}
+                    onChange={(date: dayjs.Dayjs | null) => dispatch({ endDate: date ? date.toISOString() : "" })}
                     sx={{ width: { xs: "100%", sm: "27%" }, mb: 1 }}
                     disabled={loading || disabled}
                     timezone="UTC"
@@ -140,7 +140,7 @@ const CampaignEdit = ({
                         disabled={loading || disabled}
                     />
                 }
-                disabled={disableOnPrivate && !initialCampaignCreate.isPublic}
+                disabled={disableOnPrivate && !campaign.isPublic}
                 sx={{ my: 2 }}
                 label={
                     <Typography variant="body1" color="textSecondary">
