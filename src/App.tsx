@@ -10,6 +10,7 @@ import InitColorSchemeScript from '@mui/material/InitColorSchemeScript';
 import theme from './theme'
 import GlobalLoadingPage from './components/GlobalLoadingPage'
 import CampaignDetail from './pages/campaign/CampaignDetail'
+import CampaignList from './pages/campaign/CampaignList'
 
 const PrivacyPolicy = lazy(() => import('./pages/policy/Privacy'))
 const TermsOfService = lazy(() => import('./pages/policy/Terms'))
@@ -34,6 +35,7 @@ function App() {
             <Route path="/user/callback/write" element={<CallbackWritePage />} />
             <Route path="/policy/privacy" element={<PrivacyPolicy />} />
             <Route path="/policy/terms" element={<TermsOfService />} />
+            <Route path="/campaign" element={<CampaignList />} />
             <Route path="/campaign/:campaignId" element={<CampaignDetail />} />
             <Route path="/*" element={<PrivateRoute />} />
           </Routes>
