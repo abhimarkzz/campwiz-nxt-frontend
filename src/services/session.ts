@@ -13,7 +13,7 @@ export async function loginInitiate(
     next: string | null,
     pathName: string = "/user/login"
 ): Promise<void> {
-    const qs = `?next=${next ?? "/"}`;
+    const qs = `?next=${encodeURIComponent(next ?? "/")}`;
     const res = await fetchAPI<RedirectResponse>(`${pathName}${qs}`);
     if (isResponseError(res)) throw new Error(res.detail);
     const location = (res as unknown as RedirectResponse).redirect;
