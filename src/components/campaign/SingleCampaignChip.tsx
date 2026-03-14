@@ -11,8 +11,8 @@ import { styled } from "@mui/material/styles";
 import RightArrowIcon from "@mui/icons-material/KeyboardArrowRight";
 import { useTranslation } from "react-i18next";
 import Status from "@/components/round/Status";
-import { RoundStatus } from "@/types/round/status";
 import type { Campaign } from "@/types/campaign/campaign";
+import type { RoundStatus } from "@/types/round/status";
 
 interface SingleCampaignChipProps {
     campaign: Campaign;
@@ -58,8 +58,7 @@ const SingleCampaignChip = ({ campaign }: SingleCampaignChipProps) => {
             ? `${campaign.description.slice(0, DESCRIPTION_LIMIT)}...`
             : campaign.description;
 
-    const status =
-        campaign.archivedAt === null ? RoundStatus.ACTIVE : RoundStatus.ARCHIVED;
+    const status = campaign.status as RoundStatus;
 
     return (
         <StyledCard sx={cardSx}>
