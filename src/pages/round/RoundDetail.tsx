@@ -117,7 +117,7 @@ const RoundDetail = () => {
                 </Box>
             </Box>
 
-            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(4, 1fr)" }, gap: 2, mb: 3 }}>
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(3, 1fr)" }, gap: 2, mb: 3 }}>
                 <Card>
                     <CardContent>
                         <Typography color="textSecondary" gutterBottom>{t("round.status")}</Typography>
@@ -128,15 +128,7 @@ const RoundDetail = () => {
                 </Card>
                 <Card>
                     <CardContent>
-                        <Typography color="textSecondary" gutterBottom>{t("round.start_date")}</Typography>
-                        <Typography variant="body2" sx={{ mt: 1 }}>
-                            {new Date(round.createdAt).toLocaleDateString()}
-                        </Typography>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent>
-                        <Typography color="textSecondary" gutterBottom>{t("round.end_date")}</Typography>
+                        <Typography color="textSecondary" gutterBottom>{t("round.created_at")}</Typography>
                         <Typography variant="body2" sx={{ mt: 1 }}>
                             {new Date(round.createdAt).toLocaleDateString()}
                         </Typography>
