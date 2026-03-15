@@ -16,8 +16,10 @@ import { useTranslation } from "react-i18next";
 import EditIcon from "@mui/icons-material/Edit";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import PendingIcon from "@mui/icons-material/Pending";
+import LockIcon from "@mui/icons-material/Lock";
 import { fetchAPIFromBackendSingleWithErrorHandling as fetchAPI } from "@/api";
 import type { Submission } from "@/types/submission";
+import { getErrorMessageKey } from "@/utils/apiResponseHandler";
 import ReturnButton from "@/components/ReturnButton";
 
 const SubmissionDetail = () => {
@@ -42,19 +44,22 @@ const SubmissionDetail = () => {
                     `/submission/${submissionId}`
                 );
 
-                if ("detail" in res) {
-                    setError(t(res.detail));
+                if (res && typeof res === 'object' && 'detail' in res) {
+                    const apiError = (res as unknown as { detail: string }).detail;
+                    const errorKey = getErrorMessageKey(apiError);
+                    setError(t(errorKey));
                     setSubmission(null);
-                } else {
+                } else if (res && typeof res === 'object') {
                     setSubmission(res as unknown as Submission);
                     setError(null);
+                } else {
+                    setError(t("error.failedToFetch"));
+                    setSubmission(null);
                 }
             } catch (err) {
-                setError(
-                    err instanceof Error
-                        ? err.message
-                        : t("submission.fetch_failed")
-                );
+                const errorMessage = err instanceof Error ? err.message : "Unknown error";
+                const errorKey = getErrorMessageKey(errorMessage);
+                setError(t(errorKey));
                 setSubmission(null);
             } finally {
                 setLoading(false);
@@ -91,7 +96,7 @@ const SubmissionDetail = () => {
                 <ReturnButton />
                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 2 }}>
                     <Typography variant="h4" component="h1">{submission.title}</Typography>
-                    <Button variant="outlined" startIcon={<EditIcon />} onClick={() => navigate(`/submission/${submissionId}/edit`)}>
+                    <Button variant="outlined" startIcon={<EditIcon />} disabled title="Coming in Phase 4">
                         {t("common.edit")}
                     </Button>
                 </Box>
@@ -171,13 +176,24 @@ const SubmissionDetail = () => {
                     <Typography variant="h6" gutterBottom>{t("submission.actions")}</Typography>
                     <Divider sx={{ my: 2 }} />
                     <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-                        <Button variant="contained" onClick={() => navigate(`/round/${submission.roundId}/submission`)}>
+                        <Button 
+                            variant="contained" 
+                            disabled 
+                            title="Coming in Phase 4"
+                            startIcon={<LockIcon />}
+                        >
                             {t("submission.back_to_round")}
                         </Button>
-                        <Button variant="outlined" onClick={() => navigate(`/campaign/${submission.campaignId}`)}>
+                        <Button 
+                            variant="outlined" 
+                            onClick={() => navigate(`/campaign/${submission.campaignId}`)}
+                        >
                             {t("submission.view_campaign")}
                         </Button>
-                        <Button variant="outlined" onClick={() => navigate("/submission")}>
+                        <Button 
+                            variant="outlined" 
+                            onClick={() => navigate("/submission")}
+                        >
                             {t("submission.all_submissions")}
                         </Button>
                     </Box>
