@@ -231,7 +231,13 @@
         "accessDeniedToProject": "You don't have access to this project",
         "failedToFetchProject": "Failed to fetch your project",
         "failedToFetchCampaign": "Failed to fetch campaign details",
-        "failedToFetchRound": "Failed to fetch round details"
+        "failedToFetchRound": "Failed to fetch round details",
+        "notFound": "The requested resource was not found",
+        "unauthorized": "You do not have permission to access this resource",
+        "forbidden": "Access to this resource is forbidden",
+        "serverError": "A server error occurred. Please try again later",
+        "networkError": "Network connection error. Please check your internet connection",
+        "failedToFetch": "Failed to load data. Please try again"
     },
     "close": "Close",
     "previous": "Previous",
