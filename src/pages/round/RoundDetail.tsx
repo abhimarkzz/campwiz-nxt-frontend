@@ -7,30 +7,26 @@ import {
     Button,
     Card,
     CardContent,
+    Chip,
     CircularProgress,
     Alert,
     Divider,
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import EditIcon from "@mui/icons-material/Edit";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { fetchAPIFromBackendSingleWithErrorHandling as fetchAPI } from "@/api";
-import type { RoundStatus } from "@/types/round/status";
-import Status from "@/components/round/Status";
+import type { Round } from "@/types/round";
+import type { Submission } from "@/types/submission";
+import { getErrorMessageKey } from "@/utils/apiResponseHandler";
 import ReturnButton from "@/components/ReturnButton";
+import Status from "@/components/round/Status";
+import type { RoundStatus } from "@/types/round/status";
 
-interface RoundDetail {
-    roundId: string;
-    campaignId: string;
-    name: string;
-    status: string;
-    createdAt: string;
-    startDate: string;
-    endDate: string;
+interface RoundDetailResponse extends Round {
     description?: string;
     submissionCount?: number;
-    evaluatedCount?: number;
-    totalScore?: number;
+    submissions?: Submission[];
+    updatedAt: string;
 }
 
 const RoundDetail = () => {
@@ -41,7 +37,7 @@ const RoundDetail = () => {
     const navigate = useNavigate();
     const { t } = useTranslation();
 
-    const [round, setRound] = useState<RoundDetail | null>(null);
+    const [round, setRound] = useState<RoundDetailResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -54,21 +50,28 @@ const RoundDetail = () => {
             }
 
             try {
-                const res = await fetchAPI<RoundDetail>(
+                const res = await fetchAPI<RoundDetailResponse>(
                     `/campaign/${campaignId}/round/${roundId}`
                 );
 
-                if ("detail" in res) {
-                    setError(t(res.detail));
+                // Safe error checking: guard against null/undefined
+                if (res && typeof res === 'object' && 'detail' in res) {
+                    const apiError = (res as unknown as { detail: string }).detail;
+                    const errorKey = getErrorMessageKey(apiError);
+                    setError(t(errorKey));
                     setRound(null);
-                } else {
-                    setRound(res as unknown as RoundDetail);
+                } else if (res && typeof res === 'object') {
+                    // API returns raw RoundDetail data directly
+                    setRound(res as unknown as RoundDetailResponse);
                     setError(null);
+                } else {
+                    setError(t("error.failedToFetch"));
+                    setRound(null);
                 }
             } catch (err) {
-                setError(
-                    err instanceof Error ? err.message : t("round.fetch_failed")
-                );
+                const errorMessage = err instanceof Error ? err.message : "Unknown error";
+                const errorKey = getErrorMessageKey(errorMessage);
+                setError(t(errorKey));
                 setRound(null);
             } finally {
                 setLoading(false);
@@ -103,14 +106,14 @@ const RoundDetail = () => {
                 <ReturnButton />
                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 2 }}>
                     <Typography variant="h4" component="h1">{round.name}</Typography>
-                    <Box sx={{ display: "flex", gap: 1 }}>
-                        <Button variant="outlined" startIcon={<EditIcon />} onClick={() => navigate(`/campaign/${campaignId}/round/${roundId}/edit`)}>
-                            {t("common.edit")}
-                        </Button>
-                        <Button variant="contained" startIcon={<PlayArrowIcon />} onClick={() => navigate(`/round/${roundId}/submission/evaluate`)}>
-                            {t("round.evaluate")}
-                        </Button>
-                    </Box>
+                    <Button 
+                        variant="outlined" 
+                        startIcon={<EditIcon />} 
+                        disabled 
+                        title="Coming in Phase 4"
+                    >
+                        {t("common.edit")}
+                    </Button>
                 </Box>
             </Box>
 
@@ -123,25 +126,26 @@ const RoundDetail = () => {
                         </Box>
                     </CardContent>
                 </Card>
-
+                <Card>
+                    <CardContent>
+                        <Typography color="textSecondary" gutterBottom>{t("round.start_date")}</Typography>
+                        <Typography variant="body2" sx={{ mt: 1 }}>
+                            {new Date(round.createdAt).toLocaleDateString()}
+                        </Typography>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardContent>
+                        <Typography color="textSecondary" gutterBottom>{t("round.end_date")}</Typography>
+                        <Typography variant="body2" sx={{ mt: 1 }}>
+                            {new Date(round.createdAt).toLocaleDateString()}
+                        </Typography>
+                    </CardContent>
+                </Card>
                 <Card>
                     <CardContent>
                         <Typography color="textSecondary" gutterBottom>{t("round.submissions")}</Typography>
                         <Typography variant="h5" sx={{ mt: 1 }}>{round.submissionCount || 0}</Typography>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardContent>
-                        <Typography color="textSecondary" gutterBottom>{t("round.evaluated")}</Typography>
-                        <Typography variant="h5" sx={{ mt: 1 }}>{round.evaluatedCount || 0}</Typography>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardContent>
-                        <Typography color="textSecondary" gutterBottom>{t("round.total_score")}</Typography>
-                        <Typography variant="h5" sx={{ mt: 1 }}>{round.totalScore || 0}</Typography>
                     </CardContent>
                 </Card>
             </Box>
@@ -150,6 +154,7 @@ const RoundDetail = () => {
                 <Card sx={{ mb: 3 }}>
                     <CardContent>
                         <Typography variant="h6" gutterBottom>{t("round.description")}</Typography>
+                        <Divider sx={{ my: 2 }} />
                         <Typography variant="body2" color="textSecondary">{round.description}</Typography>
                     </CardContent>
                 </Card>
@@ -161,34 +166,42 @@ const RoundDetail = () => {
                     <Divider sx={{ my: 2 }} />
                     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
                         <Box>
-                            <Typography color="textSecondary" gutterBottom>{t("round.start_date")}</Typography>
-                            <Typography variant="body1">{new Date(round.startDate).toLocaleDateString()}</Typography>
+                            <Typography color="textSecondary" gutterBottom>{t("round.created_at")}</Typography>
+                            <Typography variant="body2">{new Date(round.createdAt).toLocaleDateString()}</Typography>
                         </Box>
                         <Box>
-                            <Typography color="textSecondary" gutterBottom>{t("round.end_date")}</Typography>
-                            <Typography variant="body1">{new Date(round.endDate).toLocaleDateString()}</Typography>
+                            <Typography color="textSecondary" gutterBottom>{t("round.updated_at")}</Typography>
+                            <Typography variant="body2">{new Date(round.updatedAt).toLocaleDateString()}</Typography>
                         </Box>
                     </Box>
                 </CardContent>
             </Card>
 
-            <Card>
-                <CardContent>
-                    <Typography variant="h6" gutterBottom>{t("round.actions")}</Typography>
-                    <Divider sx={{ my: 2 }} />
-                    <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-                        <Button variant="contained" onClick={() => navigate(`/round/${roundId}/submission`)}>
-                            {t("round.view_submissions")}
-                        </Button>
-                        <Button variant="outlined" onClick={() => navigate(`/round/${roundId}/submission/evaluated`)}>
-                            {t("round.view_evaluated")}
-                        </Button>
-                        <Button variant="outlined" onClick={() => navigate(`/campaign/${campaignId}`)}>
-                            {t("round.back_to_campaign")}
-                        </Button>
-                    </Box>
-                </CardContent>
-            </Card>
+            {round.submissions && round.submissions.length > 0 && (
+                <Card>
+                    <CardContent>
+                        <Typography variant="h6" gutterBottom>{t("round.recent_submissions")}</Typography>
+                        <Divider sx={{ my: 2 }} />
+                        <Box sx={{ display: "grid", gap: 1 }}>
+                            {round.submissions.slice(0, 5).map((submission: Submission) => (
+                                <Card 
+                                    key={submission.submissionId} 
+                                    variant="outlined" 
+                                    sx={{ cursor: "pointer", "&:hover": { boxShadow: 1 } }}
+                                    onClick={() => navigate(`/submission/${submission.submissionId}`)}
+                                >
+                                    <CardContent>
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                            <Typography variant="body2">{submission.title}</Typography>
+                                            <Chip size="small" label={submission.status} />
+                                        </Box>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </Box>
+                    </CardContent>
+                </Card>
+            )}
         </Container>
     );
 };
