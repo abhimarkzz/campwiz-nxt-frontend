@@ -15,9 +15,11 @@ import { useTranslation } from "react-i18next";
 import EditIcon from "@mui/icons-material/Edit";
 import { fetchAPIFromBackendSingleWithErrorHandling as fetchAPI } from "@/api";
 import type { Campaign } from "@/types/campaign/campaign";
+import type { ResponseSingle, ResponseError } from "@/types/response";
 import Status from "@/components/round/Status";
 import ReturnButton from "@/components/ReturnButton";
 import type { RoundStatus } from "@/types/round/status";
+import { sanitizeHtml } from "@/utils/apiResponseHandler";
 
 const CampaignDetail = () => {
     const { campaignId } = useParams<{ campaignId: string }>();
@@ -38,15 +40,20 @@ const CampaignDetail = () => {
 
             try {
                 const res = await fetchAPI<Campaign>(`/campaign/${campaignId}`);
-                if ("detail" in res) {
-                    setError(t(res.detail));
+                
+                // Type-safe unwrapping of ResponseSingle
+                if ('detail' in res) {
+                    const errorRes = res as ResponseError;
+                    setError(t(errorRes.detail));
                     setCampaign(null);
                 } else {
-                    setCampaign(res as unknown as Campaign);
+                    const successRes = res as ResponseSingle<Campaign>;
+                    setCampaign(successRes.data);
                     setError(null);
                 }
             } catch (err) {
-                setError(err instanceof Error ? err.message : t("campaign.fetch_failed"));
+                const errorMessage = err instanceof Error ? err.message : t("campaign.fetch_failed");
+                setError(errorMessage);
                 setCampaign(null);
             } finally {
                 setLoading(false);
@@ -74,6 +81,8 @@ const CampaignDetail = () => {
         );
     }
 
+    const sanitizedRules = sanitizeHtml(campaign.rules);
+
     return (
         <Container maxWidth="lg" sx={{ py: 4 }}>
             <Box sx={{ mb: 3 }}>
@@ -87,7 +96,7 @@ const CampaignDetail = () => {
             </Box>
 
             {campaign.image && (
-                <Box component="img" src={campaign.image} alt={campaign.name} sx={{ width: "100%", maxHeight: 400, objectFit: "cover", borderRadius: 1, mb: 3 }} />
+                <Box component="img" src={campaign.image} alt={campaign.name} loading="lazy" sx={{ width: "100%", maxHeight: 400, objectFit: "cover", borderRadius: 1, mb: 3 }} />
             )}
 
             <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "repeat(4, 1fr)" }, gap: 2, mb: 3 }}>
@@ -126,11 +135,11 @@ const CampaignDetail = () => {
                 </CardContent>
             </Card>
 
-            {campaign.rules && (
+            {sanitizedRules && (
                 <Card sx={{ mb: 3 }}>
                     <CardContent>
                         <Typography variant="h6" gutterBottom>{t("campaign.rules")}</Typography>
-                        <Typography variant="body2" color="textSecondary" dangerouslySetInnerHTML={{ __html: campaign.rules }} />
+                        <Typography variant="body2" color="textSecondary" dangerouslySetInnerHTML={{ __html: sanitizedRules }} />
                     </CardContent>
                 </Card>
             )}

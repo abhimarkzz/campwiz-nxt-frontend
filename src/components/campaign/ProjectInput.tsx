@@ -1,4 +1,5 @@
 import { MenuItem, TextField } from "@mui/material";
+import { useState } from "react";
 import useSWR from "swr";
 
 interface ProjectInputProps {
@@ -10,6 +11,8 @@ interface ProjectInputProps {
 }
 
 const ProjectInput = (props: ProjectInputProps) => {
+    const [inputValue] = useState<string>("");
+    
     const fetcher = async (url: string) => {
         const response = await fetch(url);
         const data = await response.json();
@@ -17,7 +20,7 @@ const ProjectInput = (props: ProjectInputProps) => {
     };
     
     const { isLoading, data: options } = useSWR(
-        `/api/v2/projects`,
+        inputValue === "" ? null : `/api/v2/projects?search=${inputValue}`,
         fetcher,
         {
             revalidateOnFocus: false,

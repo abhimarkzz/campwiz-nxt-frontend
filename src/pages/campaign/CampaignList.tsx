@@ -9,11 +9,13 @@ import {
     CircularProgress,
     Alert,
     Pagination,
+    Paper,
 } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
 import { useTranslation } from "react-i18next";
+import AddIcon from "@mui/icons-material/Add";
 import { fetchAPIFromBackendSingleWithErrorHandling as fetchAPI } from "@/api";
 import type { Campaign } from "@/types/campaign/campaign";
+import type { ResponseSingle, ResponseError } from "@/types/response";
 import SingleCampaignChip from "@/components/campaign/SingleCampaignChip";
 import ReturnButton from "@/components/ReturnButton";
 
@@ -44,26 +46,27 @@ const CampaignList = () => {
         const fetchCampaigns = async () => {
             setLoading(true);
             try {
-                const query = searchQuery ? `?search=${encodeURIComponent(searchQuery)}&page=${currentPage}` : `?page=${currentPage}`;
+                const query = searchQuery
+                    ? `?search=${encodeURIComponent(searchQuery)}&page=${currentPage}`
+                    : `?page=${currentPage}`;
                 const res = await fetchAPI<CampaignListResponse>(
                     `/campaign${query}`
                 );
 
-                if ("detail" in res) {
-                    setError(t(res.detail));
+                if ('detail' in res) {
+                    const errorRes = res as ResponseError;
+                    setError(t(errorRes.detail));
                     setCampaigns([]);
                 } else {
-                    const data = res as unknown as CampaignListResponse;
+                    const successRes = res as ResponseSingle<CampaignListResponse>;
+                    const data = successRes.data;
                     setCampaigns(data.campaigns || []);
                     setTotalPages(Math.ceil(data.total / data.pageSize));
                     setError(null);
                 }
             } catch (err) {
-                setError(
-                    err instanceof Error
-                        ? err.message
-                        : t("campaign.fetch_failed")
-                );
+                const errorMessage = err instanceof Error ? err.message : t("campaign.fetch_failed");
+                setError(errorMessage);
                 setCampaigns([]);
             } finally {
                 setLoading(false);
@@ -92,10 +95,23 @@ const CampaignList = () => {
         <Container maxWidth="lg" sx={{ py: 4 }}>
             <Box sx={{ mb: 4 }}>
                 <ReturnButton />
-                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 2 }}>
-                    <Typography variant="h4" component="h1">{t("campaign.campaigns")}</Typography>
-                    <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate("/campaign/new")}>
-                        {t("campaign.create_new")}
+                <Box
+                    sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        mt: 2,
+                    }}
+                >
+                    <Typography variant="h4" component="h1">
+                        {t("campaign.campaigns")}
+                    </Typography>
+                    <Button
+                        variant="contained"
+                        startIcon={<AddIcon />}
+                        onClick={() => navigate("/campaign/new")}
+                    >
+                        {t("campaign.new")}
                     </Button>
                 </Box>
             </Box>
@@ -112,23 +128,64 @@ const CampaignList = () => {
                 />
             </Box>
 
-            {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+            {error && (
+                <Alert severity="error" sx={{ mb: 3 }}>
+                    {error}
+                </Alert>
+            )}
 
             {loading ? (
-                <Box sx={{ textAlign: "center", py: 4 }}><CircularProgress /></Box>
+                <Box sx={{ textAlign: "center", py: 4 }}>
+                    <CircularProgress />
+                </Box>
             ) : campaigns.length === 0 ? (
-                <Alert severity="info">{t("campaign.no_campaigns")}</Alert>
+                <Alert severity="info">
+                    {t("campaign.no_campaigns")}
+                </Alert>
             ) : (
                 <>
-                    <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "center", mb: 4 }}>
+                    <Paper
+                        sx={{
+                            display: "grid",
+                            gridTemplateColumns: {
+                                xs: "1fr",
+                                sm: "1fr 1fr",
+                                md: "repeat(3, 1fr)",
+                            },
+                            gap: 2,
+                            mb: 4,
+                            p: 2,
+                        }}
+                    >
                         {campaigns.map((campaign) => (
-                            <SingleCampaignChip key={campaign.campaignId} campaign={campaign} />
+                            <Box
+                                key={campaign.campaignId}
+                                onClick={() =>
+                                    navigate(
+                                        `/campaign/${campaign.campaignId}`
+                                    )
+                                }
+                                sx={{ cursor: "pointer" }}
+                            >
+                                <SingleCampaignChip campaign={campaign} />
+                            </Box>
                         ))}
-                    </Box>
+                    </Paper>
 
                     {totalPages > 1 && (
-                        <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
-                            <Pagination count={totalPages} page={currentPage} onChange={handlePageChange} color="primary" />
+                        <Box
+                            sx={{
+                                display: "flex",
+                                justifyContent: "center",
+                                mt: 4,
+                            }}
+                        >
+                            <Pagination
+                                count={totalPages}
+                                page={currentPage}
+                                onChange={handlePageChange}
+                                color="primary"
+                            />
                         </Box>
                     )}
                 </>
