@@ -18,7 +18,7 @@ import type { Campaign } from "@/types/campaign/campaign";
 import Status from "@/components/round/Status";
 import ReturnButton from "@/components/ReturnButton";
 import type { RoundStatus } from "@/types/round/status";
-import { sanitizeHtml } from "@/utils/apiResponseHandler";
+import { sanitizeHtml, getErrorMessageKey } from "@/utils/apiResponseHandler";
 
 const CampaignDetail = () => {
     const { campaignId } = useParams<{ campaignId: string }>();
@@ -42,19 +42,22 @@ const CampaignDetail = () => {
                 
                 // Check for error response
                 if (res && typeof res === 'object' && 'detail' in res) {
-                    setError(t((res as unknown as { detail: string }).detail));
+                    const apiError = (res as unknown as { detail: string }).detail;
+                    const errorKey = getErrorMessageKey(apiError);
+                    setError(t(errorKey));
                     setCampaign(null);
                 } else if (res && typeof res === 'object') {
-                    // API returns raw Campaign data directly despite ResponseSingle<T> type hint
+                    // API returns raw Campaign data directly
                     setCampaign(res as unknown as Campaign);
                     setError(null);
                 } else {
-                    setError(t("campaign.fetch_failed"));
+                    setError(t("error.failedToFetch"));
                     setCampaign(null);
                 }
             } catch (err) {
-                const errorMessage = err instanceof Error ? err.message : t("campaign.fetch_failed");
-                setError(errorMessage);
+                const errorMessage = err instanceof Error ? err.message : "Unknown error";
+                const errorKey = getErrorMessageKey(errorMessage);
+                setError(t(errorKey));
                 setCampaign(null);
             } finally {
                 setLoading(false);
