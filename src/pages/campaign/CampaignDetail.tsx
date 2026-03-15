@@ -18,7 +18,8 @@ import type { Campaign } from "@/types/campaign/campaign";
 import Status from "@/components/round/Status";
 import ReturnButton from "@/components/ReturnButton";
 import type { RoundStatus } from "@/types/round/status";
-import { sanitizeHtml, getErrorMessageKey } from "@/utils/apiResponseHandler";
+import { sanitizeHtml } from "@/utils/apiResponseHandler";
+import { getErrorMessageKey } from "@/utils/apiResponseHandler";
 
 const CampaignDetail = () => {
     const { campaignId } = useParams<{ campaignId: string }>();
@@ -40,14 +41,14 @@ const CampaignDetail = () => {
             try {
                 const res = await fetchAPI<Campaign>(`/campaign/${campaignId}`);
                 
-                // Check for error response
+                // Type-safe response handling: check for error first
                 if (res && typeof res === 'object' && 'detail' in res) {
                     const apiError = (res as unknown as { detail: string }).detail;
                     const errorKey = getErrorMessageKey(apiError);
                     setError(t(errorKey));
                     setCampaign(null);
                 } else if (res && typeof res === 'object') {
-                    // API returns raw Campaign data directly
+                    // API returns raw data directly, not wrapped in { data: T }
                     setCampaign(res as unknown as Campaign);
                     setError(null);
                 } else {
@@ -93,7 +94,12 @@ const CampaignDetail = () => {
                 <ReturnButton />
                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 2 }}>
                     <Typography variant="h4" component="h1">{campaign.name}</Typography>
-                    <Button variant="outlined" startIcon={<EditIcon />} onClick={() => navigate(`/campaign/${campaignId}/edit`)}>
+                    <Button 
+                        variant="outlined" 
+                        startIcon={<EditIcon />} 
+                        disabled 
+                        title="Coming in Phase 4"
+                    >
                         {t("common.edit")}
                     </Button>
                 </Box>
