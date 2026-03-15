@@ -12,6 +12,7 @@ import GlobalLoadingPage from './components/GlobalLoadingPage'
 import CampaignDetail from './pages/campaign/CampaignDetail'
 import CampaignList from './pages/campaign/CampaignList'
 import ProjectList from './pages/project/ProjectList'
+import ProjectDetail from './pages/project/ProjectDetail'
 import RoundDetail from './pages/round/RoundDetail'
 import SubmissionList from './pages/submission/SubmissionList'
 
@@ -45,7 +46,7 @@ function App() {
             <Route path="/campaign/:campaignId/round/:roundId" element={<RoundDetail />} />
             <Route path="/submission" element={<SubmissionList />} />
             <Route path="/project/new" element={<div>Create Project - TODO</div>} />
-            <Route path="/project/:projectId" element={<div>Project Detail - TODO</div>} />
+            <Route path="/project/:projectId" element={<ProjectDetail />} />
             <Route path="/*" element={<PrivateRoute />} />
           </Routes>
         </Suspense>
