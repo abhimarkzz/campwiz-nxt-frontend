@@ -20,11 +20,21 @@ import SubmissionDetail from './pages/submission/SubmissionDetail'
 
 const PrivacyPolicy = lazy(() => import('./pages/policy/Privacy'))
 const TermsOfService = lazy(() => import('./pages/policy/Terms'))
-const PrivateRoute = () => {
+
+const ProtectedRoutes = () => {
   return (
-    <SessionProvider>
-      <h1>Welcome to the App!</h1>
-    </SessionProvider>
+    <Routes>
+      <Route path="/project" element={<ProjectList />} />
+      <Route path="/campaign" element={<CampaignList />} />
+      <Route path="/campaign/new" element={<div>Create Campaign - TODO</div>} />
+      <Route path="/campaign/:campaignId" element={<CampaignDetail />} />
+      <Route path="/campaign/:campaignId/round/:roundId" element={<RoundDetail />} />
+      <Route path="/submission" element={<SubmissionList />} />
+      <Route path="/submission/:submissionId" element={<SubmissionDetail />} />
+      <Route path="/project/new" element={<div>Create Project - TODO</div>} />
+      <Route path="/project/:projectId" element={<ProjectDetail />} />
+      <Route path="/*" element={<div>{/* Default protected page */}</div>} />
+    </Routes>
   )
 }
 
@@ -42,16 +52,16 @@ function App() {
               <Route path="/user/callback/write" element={<CallbackWritePage />} />
               <Route path="/policy/privacy" element={<PrivacyPolicy />} />
               <Route path="/policy/terms" element={<TermsOfService />} />
-              <Route path="/project" element={<ProjectList />} />
-              <Route path="/campaign" element={<CampaignList />} />
-              <Route path="/campaign/new" element={<div>Create Campaign - TODO</div>} />
-              <Route path="/campaign/:campaignId" element={<CampaignDetail />} />
-              <Route path="/campaign/:campaignId/round/:roundId" element={<RoundDetail />} />
-              <Route path="/submission" element={<SubmissionList />} />
-              <Route path="/submission/:submissionId" element={<SubmissionDetail />} />
-              <Route path="/project/new" element={<div>Create Project - TODO</div>} />
-              <Route path="/project/:projectId" element={<ProjectDetail />} />
-              <Route path="/*" element={<PrivateRoute />} />
+              
+              {/* All protected routes wrapped by SessionProvider */}
+              <Route
+                path="/*"
+                element={
+                  <SessionProvider>
+                    <ProtectedRoutes />
+                  </SessionProvider>
+                }
+              />
             </Routes>
           </Suspense>
         </BrowserRouter>
