@@ -15,7 +15,6 @@ import { useTranslation } from "react-i18next";
 import EditIcon from "@mui/icons-material/Edit";
 import { fetchAPIFromBackendSingleWithErrorHandling as fetchAPI } from "@/api";
 import type { Campaign } from "@/types/campaign/campaign";
-import type { ResponseSingle, ResponseError } from "@/types/response";
 import Status from "@/components/round/Status";
 import ReturnButton from "@/components/ReturnButton";
 import type { RoundStatus } from "@/types/round/status";
@@ -41,15 +40,17 @@ const CampaignDetail = () => {
             try {
                 const res = await fetchAPI<Campaign>(`/campaign/${campaignId}`);
                 
-                // Type-safe unwrapping of ResponseSingle
-                if ('detail' in res) {
-                    const errorRes = res as ResponseError;
-                    setError(t(errorRes.detail));
+                // Check for error response
+                if (res && typeof res === 'object' && 'detail' in res) {
+                    setError(t((res as unknown as { detail: string }).detail));
                     setCampaign(null);
-                } else {
-                    const successRes = res as ResponseSingle<Campaign>;
-                    setCampaign(successRes.data);
+                } else if (res && typeof res === 'object') {
+                    // API returns raw Campaign data directly despite ResponseSingle<T> type hint
+                    setCampaign(res as unknown as Campaign);
                     setError(null);
+                } else {
+                    setError(t("campaign.fetch_failed"));
+                    setCampaign(null);
                 }
             } catch (err) {
                 const errorMessage = err instanceof Error ? err.message : t("campaign.fetch_failed");
