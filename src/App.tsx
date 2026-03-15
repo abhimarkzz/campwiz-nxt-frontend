@@ -13,6 +13,7 @@ import CampaignDetail from './pages/campaign/CampaignDetail'
 import CampaignList from './pages/campaign/CampaignList'
 import ProjectList from './pages/project/ProjectList'
 import RoundDetail from './pages/round/RoundDetail'
+import SubmissionList from './pages/submission/SubmissionList'
 
 const PrivacyPolicy = lazy(() => import('./pages/policy/Privacy'))
 const TermsOfService = lazy(() => import('./pages/policy/Terms'))
@@ -42,6 +43,7 @@ function App() {
             <Route path="/campaign/new" element={<div>Create Campaign - TODO</div>} />
             <Route path="/campaign/:campaignId" element={<CampaignDetail />} />
             <Route path="/campaign/:campaignId/round/:roundId" element={<RoundDetail />} />
+            <Route path="/submission" element={<SubmissionList />} />
             <Route path="/project/new" element={<div>Create Project - TODO</div>} />
             <Route path="/project/:projectId" element={<div>Project Detail - TODO</div>} />
             <Route path="/*" element={<PrivateRoute />} />
