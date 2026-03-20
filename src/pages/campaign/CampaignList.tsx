@@ -82,7 +82,7 @@ const CampaignList = () => {
 
       if ("detail" in res) throw new Error(res.detail);
 
-      return res.data;
+      return res as unknown as CampaignListResponse;
     }
   );
 
