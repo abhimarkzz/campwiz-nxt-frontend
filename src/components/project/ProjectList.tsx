@@ -25,7 +25,7 @@ const ProjectList = () => {
         async (url: string) => {
             const res = await fetchAPIFromBackendSingleWithErrorHandling<ProjectListResponse>(url);
             if ("detail" in res) throw new Error((res as { detail: string }).detail);
-            return res.data as unknown as ProjectListResponse;
+            return res as unknown as ProjectListResponse;
         }
     );
 
