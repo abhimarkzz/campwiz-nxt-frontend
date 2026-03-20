@@ -53,7 +53,7 @@ const ProjectDetail = () => {
     error: campaignError,
     isLoading: campaignLoading,
   } = useSWR<Campaign[]>(
-    projectId ? `/campaign/?projectId=${projectId}` : null,
+    projectId ? `/campaign/?projectId=${projectId}&isClosed=false` : null,
     async (url: string) => {
       const res =
         await fetchAPIFromBackendSingleWithErrorHandling<CampaignListResponse>(url);
