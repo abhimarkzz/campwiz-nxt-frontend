@@ -24,6 +24,10 @@ import sessionContext from "@/contexts/SessionContext";
 
 const PERMISSION_OTHER_PROJECT_ACCESS = 1 << 9;
 
+interface CampaignListResponse {
+  data: Campaign[];
+  total: number;
+}
 
 const ProjectDetail = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -52,11 +56,12 @@ const ProjectDetail = () => {
     projectId ? `/campaign/?projectId=${projectId}` : null,
     async (url: string) => {
       const res =
-        await fetchAPIFromBackendSingleWithErrorHandling<Campaign[]>(url);
+        await fetchAPIFromBackendSingleWithErrorHandling<CampaignListResponse>(url);
 
       if ("detail" in res) throw new Error(res.detail);
 
-      return res.data;
+      // API returns paginated { data: Campaign[], total: number }
+      return (res as unknown as CampaignListResponse).data;
     }
   );
 
