@@ -5,7 +5,10 @@ export interface User {
 }
 
 export interface Session extends User {
-    permissionMap: Record<string, boolean>;
-    logout: () => Promise<void>;
-    hasPermission: (permission: string) => boolean;
+    /** Bitflag integer representing the user's permissions */
+    permission: number;
+    /** The project this user primarily belongs to */
+    projectId: string;
+    /** Map of named permissions to booleans, if provided by the API */
+    permissionMap?: Record<string, boolean>;
 }

@@ -1,5 +1,5 @@
 import Button from "@mui/material/Button"
-import { CircularProgress, Paper, Typography, useMediaQuery, useTheme } from "@mui/material";
+import { CircularProgress, Paper, Typography, useTheme } from "@mui/material";
 
 import ArrowForward from '@mui/icons-material/ArrowForward';
 import LoginBackground from '@/assets/login5.gif';
@@ -9,7 +9,7 @@ import LottieWrapper from "@/components/LottieWrapper";
 import { translationLink, useTranslation } from "@root/i18n/client";
 import { Trans } from "react-i18next";
 import { fetchAPIFromBackendSingleWithErrorHandling } from "@/api";
-import { useNavigate } from "react-router-dom";
+
 
 interface RedirectResponse {
     redirect: string;
@@ -17,7 +17,7 @@ interface RedirectResponse {
 // Mock function - replace with actual implementation
 
 
-const LoginComponent = ({ }: { isMobile: boolean }) => {
+const LoginComponent = () => {
     const searchParams = new URLSearchParams(window.location.search);
     const next = searchParams.get('next');
     const pathName = searchParams.get('pathName') || '/user/login';
@@ -25,13 +25,11 @@ const LoginComponent = ({ }: { isMobile: boolean }) => {
     const [error, setError] = useState<Error | null>(null);
     const { t } = useTranslation();
     const theme = useTheme();
-    const navigate = useNavigate();
     const loginInitiateActionClient = useCallback(async () => {
         setError(null);
         setClicked(true);
         try {
             const qs = `?next=${next || '/'}`
-            console.log('Fetching login initiation from:', pathName + qs);
             const res = await fetchAPIFromBackendSingleWithErrorHandling<RedirectResponse>(pathName + qs, {
                 cache: 'no-cache',
                 credentials: 'include',
@@ -40,19 +38,18 @@ const LoginComponent = ({ }: { isMobile: boolean }) => {
             if ('detail' in res) {
                 throw new Error(res.detail);
             }
-            const redirectResponse = res.data as RedirectResponse;
-            console.log('Redirect response:', redirectResponse);
+            const redirectResponse = res.data;
             const location = redirectResponse.redirect;
             if (!location) {
                 throw new Error('No redirect URI provided');
             }
-            navigate(location);
+            window.location.href = location;
         } catch (e) {
             setError(e as Error);
         } finally {
             setClicked(false);
         }
-    }, [navigate, next, pathName]);
+    }, [next, pathName]);
     // const bgColor = theme.palette.mode === 'dark'
     //     ? isMobile ? 'rgba(18, 18, 18, 0.98)' : 'rgba(18, 18, 18, 0.95)'
     //     : isMobile ? 'rgba(255, 255, 255, 0.98)' : 'rgba(255, 255, 255, 0.95)';
@@ -88,7 +85,7 @@ const LoginComponent = ({ }: { isMobile: boolean }) => {
             <Typography variant="h5" sx={{ mb: 2 }}>
                 {t('login.title')}
             </Typography>
-            {error && <Typography variant="body1" color="error" sx={{ mb: 1 }}>{t(error.message)}</Typography>}
+            {error && <Typography variant="body1" color="error" sx={{ mb: 1 }}>{error.message}</Typography>}
             <Typography variant="body1" sx={{ mb: 2 }}>
                 <Trans
                     i18nKey={'settings.helpTranslation'}
@@ -197,7 +194,6 @@ const LoginComponent = ({ }: { isMobile: boolean }) => {
 
 const LoginPage = () => {
     const theme = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
     return (
         <Paper sx={{
@@ -233,7 +229,7 @@ const LoginPage = () => {
                 zIndex: 1,
             }
         }}>
-            <LoginComponent isMobile={isMobile} />
+        <LoginComponent />
         </Paper>
     )
 }

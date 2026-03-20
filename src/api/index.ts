@@ -15,20 +15,14 @@ export const fetchFromBackend = async (path: string, options?: RequestInit): Pro
 }
 export async function fetchAPIFromBackendSingleWithErrorHandling<T>(path: string, req?: RequestInit): Promise<ResponseSingle<T> | ResponseError> {
     try {
-        console.log(`${API_PATH}${path}`, req)
+
         const res = await fetchFromBackend(`${API_PATH}${path}`, req)
         if (!res.ok) {
             const errorText = await res.text();
             throw new Error(`HTTP error! status: ${res.status}, message: ${errorText}`);
         }
         const r = await res.json();
-        if (res.ok) {
-            return r
-        } else {
-            return {
-                detail: r.detail
-            }
-        }
+        return r;
     } catch (e) {
         return {
             detail: (e as Error).message

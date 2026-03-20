@@ -1,6 +1,6 @@
 
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom'
 import './App.css'
 import SessionProvider from './providers/SessionProvider'
 import LoginPage from './pages/user/Login'
@@ -13,10 +13,21 @@ import GlobalLoadingPage from './components/GlobalLoadingPage'
 
 const PrivacyPolicy = lazy(() => import('./pages/policy/Privacy'))
 const TermsOfService = lazy(() => import('./pages/policy/Terms'))
+
+import ProjectList from './components/project/ProjectList';
+import ProjectDetail from './pages/project/ProjectDetail';
+import CampaignList from './pages/campaign/CampaignList';
+
 const PrivateRoute = () => {
   return (
     <SessionProvider>
-      <h1>Welcome to the App!</h1>
+      <Routes>
+        <Route path="/project" element={<ProjectList />} />
+        <Route path="/project/:projectId" element={<ProjectDetail />} />
+        <Route path="/campaign" element={<CampaignList />} />
+        {/* Redirect root and any unmatched private routes to the dashboard */}
+        <Route path="*" element={<Navigate to="/project" replace />} />
+      </Routes>
     </SessionProvider>
   )
 }
